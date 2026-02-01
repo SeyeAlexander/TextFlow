@@ -55,7 +55,7 @@ export default function RecentPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.1 }}
-            className='grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4'
+            className='grid grid-cols-3 gap-4 md:grid-cols-4 lg:grid-cols-6'
           >
             {recentFiles.map((file) => (
               <FileCard key={file.id} file={file} />

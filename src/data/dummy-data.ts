@@ -40,19 +40,19 @@ export const DUMMY_USERS: User[] = [
     id: "user-1",
     name: "Alice Developer",
     email: "alice@textflow.io",
-    avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Alice",
+    avatar: "from-violet-500 to-purple-500",
   },
   {
     id: "user-2",
     name: "Bob Designer",
     email: "bob@textflow.io",
-    avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Bob",
+    avatar: "from-cyan-500 to-blue-500",
   },
   {
     id: "user-3",
     name: "Charlie PM",
     email: "charlie@textflow.io",
-    avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Charlie",
+    avatar: "from-emerald-500 to-teal-500",
   },
 ];
 

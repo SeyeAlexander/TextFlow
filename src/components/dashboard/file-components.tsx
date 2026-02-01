@@ -3,11 +3,12 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
+import Image from "next/image";
 import {
   FileText,
   Star,
   MoreVertical,
-  Image,
+  Image as ImageIcon,
   Video,
   Archive,
   File,
@@ -19,6 +20,8 @@ import {
 } from "lucide-react";
 import { TextFlowFile, TextFlowFolder, useTextFlowStore } from "@/store/store";
 import { formatRelativeTime } from "@/data/dummy-data";
+import { MetallicFolder } from "@/components/icons/metallic-folder";
+import { DocumentIcon } from "@/components/icons/document-icon";
 
 // Get icon component based on file type
 function FileIcon({ type, className }: { type: TextFlowFile["type"]; className?: string }) {
@@ -26,7 +29,7 @@ function FileIcon({ type, className }: { type: TextFlowFile["type"]; className?:
     case "document":
       return <FileText className={className} />;
     case "image":
-      return <Image className={className} />;
+      return <ImageIcon className={className} />;
     case "video":
       return <Video className={className} />;
     case "pdf":
@@ -204,7 +207,7 @@ function FileContextMenu({
   );
 }
 
-// File Card - with menu icon
+// File Card - with document icon
 export function FileCard({ file, index = 0 }: { file: TextFlowFile; index?: number }) {
   const { toggleStar } = useTextFlowStore();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -220,58 +223,52 @@ export function FileCard({ file, index = 0 }: { file: TextFlowFile; index?: numb
   return (
     <>
       <motion.div
-        initial={{ opacity: 0, x: 10 }}
-        animate={{ opacity: 1, x: 0 }}
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
         transition={{ delay: index * 0.03, duration: 0.2 }}
-        whileHover={{ y: -2, transition: { duration: 0.2 } }}
-        className='group relative overflow-hidden rounded-xl border border-black/5 bg-white p-4 transition-shadow hover:shadow-md dark:border-white/5 dark:bg-[#1a1a1a]'
+        whileHover={{ y: -3, transition: { duration: 0.2 } }}
+        className='group flex flex-col items-center'
       >
-        {/* Top right actions */}
-        <div className='absolute right-3 top-3 flex items-center gap-0.5'>
-          <button
-            onClick={() => toggleStar(file.id)}
-            className={`rounded-lg p-1.5 transition-colors ${
-              file.starred
-                ? "text-amber-500"
-                : "text-muted-foreground  group-hover:opacity-100 hover:text-amber-500"
-            }`}
-          >
-            <Star className={`size-3.5 ${file.starred ? "fill-current" : ""}`} />
-          </button>
-          <button
-            onClick={handleMenuClick}
-            className='rounded-lg p-1.5 text-muted-foreground  transition-colors hover:bg-black/5 group-hover:opacity-100 dark:hover:bg-white/5'
-          >
-            <MoreVertical className='size-3.5' />
-          </button>
+        {/* Document icon + actions row */}
+        <div className='relative'>
+          <Link href={`/dashboard/document/${file.id}`} className='block'>
+            <DocumentIcon size={100} className='transition-transform group-hover:scale-105' />
+          </Link>
+
+          {/* Vertical actions beside icon */}
+          <div className='absolute -right-6 top-1/2 -translate-y-1/2 flex flex-col gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity'>
+            <button
+              onClick={() => toggleStar(file.id)}
+              className={`rounded-lg p-1.5 transition-colors ${
+                file.starred
+                  ? "text-amber-500 opacity-100"
+                  : "text-muted-foreground hover:text-amber-500 hover:bg-black/5 dark:hover:bg-white/5"
+              }`}
+            >
+              <Star className={`size-3.5 ${file.starred ? "fill-current" : ""}`} />
+            </button>
+            <button
+              onClick={handleMenuClick}
+              className='rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-black/5 dark:hover:bg-white/5'
+            >
+              <MoreVertical className='size-3.5' />
+            </button>
+          </div>
         </div>
 
-        {/* File link */}
-        <Link href={`/dashboard/document/${file.id}`} className='block'>
-          {/* Icon - blue tint */}
-          <div className='mb-3 flex size-10 items-center justify-center rounded-lg bg-blue-500/10'>
-            <FileIcon type={file.type} className='size-5 text-blue-500' />
-          </div>
-
-          {/* Info */}
-          <h3 className='mb-1 truncate text-sm font-medium'>{file.name}</h3>
-          <p className='text-[11px] text-muted-foreground'>
+        {/* Text below icon */}
+        <Link
+          href={`/dashboard/document/${file.id}`}
+          className='mt-1 text-center w-full max-w-[120px]'
+        >
+          <h3 className='text-[13px] font-medium leading-tight line-clamp-2'>{file.name}</h3>
+          <p className='text-[10px] text-muted-foreground mt-0.5'>
             {file.size} · {formatRelativeTime(file.updatedAt)}
           </p>
-
-          {/* Shared indicator */}
           {file.shared && (
-            <div className='mt-2 flex items-center gap-1'>
-              <div className='flex -space-x-1.5'>
-                {[1, 2].map((i) => (
-                  <div
-                    key={i}
-                    className='size-4 rounded-full border border-white bg-linear-to-br from-purple-400 to-blue-400 dark:border-[#1a1a1a]'
-                  />
-                ))}
-              </div>
-              <span className='text-[10px] text-muted-foreground'>Shared</span>
-            </div>
+            <span className='mt-1 inline-block rounded-full bg-purple-500/10 px-1.5 py-0.5 text-[9px] text-purple-500'>
+              Shared
+            </span>
           )}
         </Link>
       </motion.div>
@@ -307,19 +304,25 @@ export function FolderCard({
       transition={{ delay: index * 0.03, duration: 0.2 }}
       whileHover={{ y: -2, transition: { duration: 0.2 } }}
     >
-      <Link
+      <Link href={`/dashboard/folder/${folder.id}`} className='group'>
+        <MetallicFolder size={140} className='transition-transform group-hover:scale-105' />
+
+        <div className='flex flex-col mx-3 -mt-2'>
+          <h3 className='mb-1 truncate text-sm font-medium'>{folder.name}</h3>
+          <p className='text-[11px] text-muted-foreground'>{fileCount} files</p>
+        </div>
+      </Link>
+      {/* <Link
         href={`/dashboard/folder/${folder.id}`}
         className='group block rounded-xl border border-black/5 bg-white p-4 transition-shadow hover:shadow-md dark:border-white/5 dark:bg-[#1a1a1a]'
       >
-        {/* Folder icon - blue tint */}
         <div className='mb-3 flex size-10 items-center justify-center rounded-lg bg-blue-500/10'>
           <FolderOpen className='size-5 text-blue-500' />
         </div>
 
-        {/* Info */}
         <h3 className='mb-1 truncate text-sm font-medium'>{folder.name}</h3>
         <p className='text-[11px] text-muted-foreground'>{fileCount} files</p>
-      </Link>
+      </Link> */}
     </motion.div>
   );
 }

@@ -85,7 +85,7 @@ export default function NotFound() {
           transition={{ duration: 0.5, delay: 0.5 }}
         >
           <Link
-            href='/'
+            href='/dashboard'
             className='group inline-flex items-center gap-2 rounded-lg border border-black/10 bg-white px-5 py-2.5 text-sm font-medium transition-all hover:border-black/20 hover:shadow-sm dark:border-white/10 dark:bg-white/5 dark:hover:border-white/20'
           >
             <ArrowLeft className='size-4 transition-transform group-hover:-translate-x-0.5' />

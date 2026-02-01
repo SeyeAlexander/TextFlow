@@ -43,7 +43,7 @@ export default function DashboardPage() {
             className='mb-6'
           >
             <h2 className='mb-3 text-xs font-medium text-muted-foreground'>Folders</h2>
-            <div className='grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-5'>
+            <div className='grid grid-cols-2 gap-3 pb-4 md:grid-cols-4 lg:grid-cols-6'>
               {topLevelFolders.map((folder, index) => (
                 <FolderCard
                   key={folder.id}

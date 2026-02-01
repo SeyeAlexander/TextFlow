@@ -8,28 +8,16 @@ import { useTextFlowStore } from "@/store/store";
 import { CURRENT_USER_ID } from "@/data/dummy-data";
 import { Users, MessageCircle, X, Sparkles } from "lucide-react";
 
-// Professional avatar options - 3 male, 2 female, calm expressions, diverse skin tones
+// Gradient avatar options - 8 total
 const AVATAR_OPTIONS = [
-  {
-    id: "male-1",
-    url: "https://api.dicebear.com/7.x/personas/svg?seed=Marcus&backgroundColor=b6e3f4&skinColor=9e5622",
-  },
-  {
-    id: "female-1",
-    url: "https://api.dicebear.com/7.x/personas/svg?seed=Sofia&backgroundColor=c0aede&skinColor=f5d0c5",
-  },
-  {
-    id: "male-2",
-    url: "https://api.dicebear.com/7.x/personas/svg?seed=James&backgroundColor=d1d4f9&skinColor=ebd3b5",
-  },
-  {
-    id: "female-2",
-    url: "https://api.dicebear.com/7.x/personas/svg?seed=Aisha&backgroundColor=ffd5dc&skinColor=8d5524",
-  },
-  {
-    id: "male-3",
-    url: "https://api.dicebear.com/7.x/personas/svg?seed=Chen&backgroundColor=ffdfbf&skinColor=c68642",
-  },
+  { id: "gradient-1", gradient: "from-violet-500 to-purple-500" },
+  { id: "gradient-2", gradient: "from-pink-500 to-rose-500" },
+  { id: "gradient-3", gradient: "from-cyan-500 to-blue-500" },
+  { id: "gradient-4", gradient: "from-emerald-500 to-teal-500" },
+  { id: "gradient-5", gradient: "from-amber-500 to-orange-500" },
+  { id: "gradient-6", gradient: "from-indigo-500 to-violet-500" },
+  { id: "gradient-7", gradient: "from-rose-500 to-pink-500" },
+  { id: "gradient-8", gradient: "from-teal-500 to-cyan-500" },
 ];
 
 // Typing indicator component
@@ -103,20 +91,39 @@ function AvatarSelectionScreen({ onSelect }: { onSelect: (avatarUrl: string) => 
       <p className='text-xs font-medium text-muted-foreground mb-3 uppercase tracking-wide'>
         Choose your avatar
       </p>
-      <div className='flex gap-3'>
-        {AVATAR_OPTIONS.map((avatar) => (
-          <motion.button
-            key={avatar.id}
-            whileHover={{ scale: 1.1, y: -2 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => onSelect(avatar.url)}
-            className='relative group'
-          >
-            <div className='size-11 rounded-full overflow-hidden ring-2 ring-transparent hover:ring-blue-400 transition-all bg-neutral-100 dark:bg-neutral-800'>
-              <img src={avatar.url} alt={avatar.id} className='w-full h-full' />
-            </div>
-          </motion.button>
-        ))}
+      <div className='flex flex-col gap-3 items-center'>
+        {/* Top row - 5 avatars */}
+        <div className='flex gap-3'>
+          {AVATAR_OPTIONS.slice(0, 5).map((avatar) => (
+            <motion.button
+              key={avatar.id}
+              whileHover={{ scale: 1.1, y: -2 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => onSelect(avatar.gradient)}
+              className='relative group'
+            >
+              <div
+                className={`size-11 rounded-full bg-linear-to-br ${avatar.gradient} ring-2 ring-transparent hover:ring-blue-400 transition-all`}
+              />
+            </motion.button>
+          ))}
+        </div>
+        {/* Bottom row - 3 avatars */}
+        <div className='flex gap-3'>
+          {AVATAR_OPTIONS.slice(5, 8).map((avatar) => (
+            <motion.button
+              key={avatar.id}
+              whileHover={{ scale: 1.1, y: -2 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => onSelect(avatar.gradient)}
+              className='relative group'
+            >
+              <div
+                className={`size-11 rounded-full bg-linear-to-br ${avatar.gradient} ring-2 ring-transparent hover:ring-blue-400 transition-all`}
+              />
+            </motion.button>
+          ))}
+        </div>
       </div>
     </motion.div>
   );
@@ -199,10 +206,8 @@ export function ChatPane({ documentId, documentName, onClose }: ChatPaneProps) {
         <div className='flex items-center gap-1 px-4 py-2 '>
           {selectedAvatar && (
             <div className='relative -mr-1' title='You'>
-              <img
-                src={selectedAvatar}
-                alt='You'
-                className='size-6 rounded-full ring-2 ring-white dark:ring-[#0A0A0A] bg-neutral-100 dark:bg-neutral-800'
+              <div
+                className={`size-6 rounded-full bg-linear-to-br ${selectedAvatar} ring-2 ring-white dark:ring-[#0A0A0A]`}
               />
               <div className='absolute -bottom-0.5 -right-0.5 size-2 rounded-full bg-green-500 ring-1 ring-white dark:ring-[#0A0A0A]' />
             </div>
@@ -210,10 +215,8 @@ export function ChatPane({ documentId, documentName, onClose }: ChatPaneProps) {
           {collaborators.slice(0, 4).map((user) => (
             <div key={user.id} className='relative -ml-1' title={user.name}>
               {user.avatar ? (
-                <img
-                  src={user.avatar}
-                  alt={user.name}
-                  className='size-6 rounded-full ring-2 ring-white dark:ring-[#0A0A0A]'
+                <div
+                  className={`size-6 rounded-full bg-linear-to-br ${user.avatar} ring-2 ring-white dark:ring-[#0A0A0A]`}
                 />
               ) : (
                 <div className='flex size-6 items-center justify-center rounded-full bg-neutral-200 dark:bg-neutral-700 text-[10px] font-medium ring-2 ring-white dark:ring-[#0A0A0A]'>
