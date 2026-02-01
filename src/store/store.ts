@@ -23,6 +23,28 @@ export interface TextFlowFolder {
   createdAt: Date;
 }
 
+// Chat/Collaboration Types
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+  avatar?: string;
+}
+
+export interface ChatMessage {
+  id: string;
+  documentId: string;
+  userId: string;
+  content: string;
+  createdAt: Date;
+}
+
+export interface DocumentShare {
+  documentId: string;
+  userId: string;
+  sharedAt: Date;
+}
+
 export type ViewType = "home" | "all-files" | "starred" | "recent" | "shared" | string;
 
 interface TextFlowStore {
@@ -34,6 +56,14 @@ interface TextFlowStore {
   searchQuery: string;
   searchOpen: boolean;
   settingsOpen: boolean;
+  sidebarCollapsed: boolean;
+
+  // Chat state
+  users: User[];
+  messages: ChatMessage[];
+  documentShares: DocumentShare[];
+  chatOpen: boolean;
+  activeChatDocumentId: string | null;
 
   // Actions
   setView: (view: ViewType) => void;
@@ -41,6 +71,7 @@ interface TextFlowStore {
   setSearchQuery: (query: string) => void;
   setSearchOpen: (open: boolean) => void;
   setSettingsOpen: (open: boolean) => void;
+  toggleSidebar: () => void;
 
   // File actions
   addFile: (file: Omit<TextFlowFile, "id" | "createdAt" | "updatedAt">) => void;
@@ -62,6 +93,23 @@ interface TextFlowStore {
   getSharedFiles: () => TextFlowFile[];
   searchFiles: (query: string) => TextFlowFile[];
   getFoldersByParent: (parentId: string | null) => TextFlowFolder[];
+
+  // Chat actions
+  sendMessage: (documentId: string, userId: string, content: string) => void;
+  shareDocument: (documentId: string, userId: string) => void;
+  unshareDocument: (documentId: string, userId: string) => void;
+  setChatOpen: (open: boolean) => void;
+  setActiveChatDocument: (documentId: string | null) => void;
+
+  // Chat getters
+  getMessagesByDocument: (documentId: string) => ChatMessage[];
+  getDocumentCollaborators: (documentId: string) => User[];
+  getDocumentsWithChats: () => {
+    documentId: string;
+    documentName: string;
+    lastMessage?: ChatMessage;
+  }[];
+  getUserById: (userId: string) => User | undefined;
 }
 
 const generateId = () => Math.random().toString(36).substring(2, 15);
@@ -77,6 +125,14 @@ export const useTextFlowStore = create<TextFlowStore>()(
       searchQuery: "",
       searchOpen: false,
       settingsOpen: false,
+      sidebarCollapsed: false,
+
+      // Chat initial state
+      users: [],
+      messages: [],
+      documentShares: [],
+      chatOpen: false,
+      activeChatDocumentId: null,
 
       // View actions
       setView: (view) => set({ currentView: view }),
@@ -84,6 +140,7 @@ export const useTextFlowStore = create<TextFlowStore>()(
       setSearchQuery: (query) => set({ searchQuery: query }),
       setSearchOpen: (open) => set({ searchOpen: open }),
       setSettingsOpen: (open) => set({ settingsOpen: open }),
+      toggleSidebar: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
 
       // File actions
       addFile: (file) =>
@@ -184,12 +241,103 @@ export const useTextFlowStore = create<TextFlowStore>()(
       getFoldersByParent: (parentId) => {
         return get().folders.filter((f) => f.parentId === parentId);
       },
+
+      // Chat actions
+      sendMessage: (documentId, userId, content) =>
+        set((state) => ({
+          messages: [
+            ...state.messages,
+            {
+              id: generateId(),
+              documentId,
+              userId,
+              content,
+              createdAt: new Date(),
+            },
+          ],
+        })),
+
+      shareDocument: (documentId, userId) =>
+        set((state) => {
+          // Check if already shared
+          const exists = state.documentShares.some(
+            (s) => s.documentId === documentId && s.userId === userId,
+          );
+          if (exists) return state;
+          return {
+            documentShares: [...state.documentShares, { documentId, userId, sharedAt: new Date() }],
+            // Also mark file as shared
+            files: state.files.map((f) => (f.id === documentId ? { ...f, shared: true } : f)),
+          };
+        }),
+
+      unshareDocument: (documentId, userId) =>
+        set((state) => {
+          const newShares = state.documentShares.filter(
+            (s) => !(s.documentId === documentId && s.userId === userId),
+          );
+          // Check if document still has any shares
+          const stillShared = newShares.some((s) => s.documentId === documentId);
+          return {
+            documentShares: newShares,
+            files: state.files.map((f) =>
+              f.id === documentId ? { ...f, shared: stillShared } : f,
+            ),
+          };
+        }),
+
+      setChatOpen: (open) => set({ chatOpen: open }),
+      setActiveChatDocument: (documentId) => set({ activeChatDocumentId: documentId }),
+
+      // Chat getters
+      getMessagesByDocument: (documentId) => {
+        return get()
+          .messages.filter((m) => m.documentId === documentId)
+          .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+      },
+
+      getDocumentCollaborators: (documentId) => {
+        const shares = get().documentShares.filter((s) => s.documentId === documentId);
+        const userIds = shares.map((s) => s.userId);
+        return get().users.filter((u) => userIds.includes(u.id));
+      },
+
+      getDocumentsWithChats: () => {
+        const { files, messages, documentShares } = get();
+        // Get documents that have shares or messages
+        const docIdsWithActivity = new Set([
+          ...messages.map((m) => m.documentId),
+          ...documentShares.map((s) => s.documentId),
+        ]);
+        return Array.from(docIdsWithActivity)
+          .map((docId) => {
+            const file = files.find((f) => f.id === docId);
+            const docMessages = messages.filter((m) => m.documentId === docId);
+            const lastMessage = docMessages.sort(
+              (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+            )[0];
+            return file ? { documentId: docId, documentName: file.name, lastMessage } : null;
+          })
+          .filter(Boolean) as {
+          documentId: string;
+          documentName: string;
+          lastMessage?: ChatMessage;
+        }[];
+      },
+
+      getUserById: (userId) => {
+        return get().users.find((u) => u.id === userId);
+      },
     }),
     {
       name: "textflow-storage",
       partialize: (state) => ({
         files: state.files,
         folders: state.folders,
+        sidebarCollapsed: state.sidebarCollapsed,
+        users: state.users,
+        messages: state.messages,
+        documentShares: state.documentShares,
       }),
     },
   ),

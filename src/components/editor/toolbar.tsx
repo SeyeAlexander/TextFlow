@@ -124,7 +124,7 @@ export function EditorToolbar() {
   }, [editor]);
 
   return (
-    <div className='sticky top-0 z-10 flex items-center gap-1 px-4 py-2 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60'>
+    <div className='sticky top-0 z-10 flex items-center gap-1 px-4 py-2 border-b bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/60'>
       {/* Undo/Redo */}
       <ToolbarButton onClick={undo} title='Undo (Ctrl+Z)'>
         <Undo className='size-4' />

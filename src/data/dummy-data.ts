@@ -1,4 +1,11 @@
-import { TextFlowFile, TextFlowFolder, useTextFlowStore } from "@/store/store";
+import {
+  TextFlowFile,
+  TextFlowFolder,
+  User,
+  ChatMessage,
+  DocumentShare,
+  useTextFlowStore,
+} from "@/store/store";
 
 // Helper to create dates relative to now
 const daysAgo = (days: number) => {
@@ -25,6 +32,87 @@ export const DUMMY_FOLDERS: Omit<TextFlowFolder, "createdAt">[] = [
   { id: "folder-1-2", name: "Presentations", parentId: "folder-1", isOpen: false },
   { id: "folder-3-1", name: "TextFlow App", parentId: "folder-3", isOpen: false },
   { id: "folder-3-2", name: "Client Projects", parentId: "folder-3", isOpen: false },
+];
+
+// Dummy Users for chat testing
+export const DUMMY_USERS: User[] = [
+  {
+    id: "user-1",
+    name: "Alice Developer",
+    email: "alice@textflow.io",
+    avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Alice",
+  },
+  {
+    id: "user-2",
+    name: "Bob Designer",
+    email: "bob@textflow.io",
+    avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Bob",
+  },
+  {
+    id: "user-3",
+    name: "Charlie PM",
+    email: "charlie@textflow.io",
+    avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Charlie",
+  },
+];
+
+// Current user (for demo purposes)
+export const CURRENT_USER_ID = "user-1";
+
+// Dummy Document Shares
+export const DUMMY_DOCUMENT_SHARES: DocumentShare[] = [
+  { documentId: "file-2", userId: "user-2", sharedAt: daysAgo(5) },
+  { documentId: "file-2", userId: "user-3", sharedAt: daysAgo(5) },
+  { documentId: "file-8", userId: "user-2", sharedAt: daysAgo(3) },
+  { documentId: "file-9", userId: "user-3", sharedAt: daysAgo(2) },
+];
+
+// Dummy Chat Messages
+export const DUMMY_MESSAGES: Omit<ChatMessage, "id">[] = [
+  // Chat on Project Roadmap (file-2)
+  {
+    documentId: "file-2",
+    userId: "user-2",
+    content: "Hey, I reviewed the roadmap. Looks great!",
+    createdAt: daysAgo(4),
+  },
+  {
+    documentId: "file-2",
+    userId: "user-1",
+    content: "Thanks Bob! Any thoughts on timeline?",
+    createdAt: daysAgo(4),
+  },
+  {
+    documentId: "file-2",
+    userId: "user-3",
+    content: "I think Q1 is ambitious. Let's discuss priorities.",
+    createdAt: daysAgo(3),
+  },
+  {
+    documentId: "file-2",
+    userId: "user-1",
+    content: "Good point. Let's sync tomorrow.",
+    createdAt: daysAgo(3),
+  },
+  // Chat on App Design Specs (file-8)
+  {
+    documentId: "file-8",
+    userId: "user-2",
+    content: "The orange accent looks perfect! 🔥",
+    createdAt: daysAgo(2),
+  },
+  {
+    documentId: "file-8",
+    userId: "user-1",
+    content: "Glad you like it! Should we add a dark variant?",
+    createdAt: daysAgo(1),
+  },
+  {
+    documentId: "file-8",
+    userId: "user-2",
+    content: "Yes, maybe a deeper orange for dark mode.",
+    createdAt: hoursAgo(12),
+  },
 ];
 
 // Dummy Files
@@ -207,6 +295,25 @@ export function initializeDummyData() {
         files: [...state.files, { ...file, createdAt: date, updatedAt: date }],
       }));
     });
+  }
+
+  // Initialize users if empty
+  if (store.users.length === 0) {
+    useTextFlowStore.setState({ users: DUMMY_USERS });
+  }
+
+  // Initialize document shares if empty
+  if (store.documentShares.length === 0) {
+    useTextFlowStore.setState({ documentShares: DUMMY_DOCUMENT_SHARES });
+  }
+
+  // Initialize messages if empty
+  if (store.messages.length === 0) {
+    const messagesWithIds = DUMMY_MESSAGES.map((msg, i) => ({
+      ...msg,
+      id: `msg-${i + 1}`,
+    }));
+    useTextFlowStore.setState({ messages: messagesWithIds });
   }
 }
 

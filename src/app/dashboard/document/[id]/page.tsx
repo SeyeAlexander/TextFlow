@@ -16,15 +16,16 @@ import {
   ChevronLeft,
   Star,
   Share2,
-  MoreHorizontal,
   Save,
+  X,
+  Check,
+  Globe,
+  Mail,
+  MessageCircle,
 } from "lucide-react";
 import { useTextFlowStore } from "@/store/store";
-import { initializeDummyData } from "@/data/dummy-data";
 import Link from "next/link";
-import { AppSidebar, CollapsedSidebar } from "@/components/dashboard/app-sidebar";
-import { SearchModal } from "@/components/dashboard/search-modal";
-import { SettingsModal } from "@/components/dashboard/settings-modal";
+import { ChatPane } from "@/components/chat";
 
 // Crosshairs Component
 function Crosshairs() {
@@ -42,6 +43,112 @@ function Crosshairs() {
       {/* Bottom-right */}
       <div className='absolute bottom-4 right-4 h-6 w-px bg-neutral-300 dark:bg-neutral-700' />
       <div className='absolute bottom-4 right-4 h-px w-6 bg-neutral-300 dark:bg-neutral-700' />
+    </>
+  );
+}
+
+// Share Popover
+function SharePopover({
+  isOpen,
+  onClose,
+  file,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  file: { id: string; shared: boolean };
+}) {
+  const { toggleShare } = useTextFlowStore();
+  const [email, setEmail] = useState("");
+  const [isPublic, setIsPublic] = useState(file.shared);
+
+  const handleShare = () => {
+    if (email.trim()) {
+      // TODO: Implement email sharing
+      console.log("Share with:", email);
+      setEmail("");
+    }
+  };
+
+  const handleTogglePublic = () => {
+    setIsPublic(!isPublic);
+    toggleShare(file.id);
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <>
+      <div className='fixed inset-0 z-40' onClick={onClose} />
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: -5 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: -5 }}
+        className='absolute right-0 top-full z-50 mt-2 rounded-xl border border-black/10 bg-white p-4 shadow-xl dark:border-white/10 dark:bg-[#1a1a1a]'
+      >
+        {/* Header */}
+        <div className='mb-3 flex items-center justify-between'>
+          <h3 className='text-sm font-medium'>Share document</h3>
+          <button
+            onClick={onClose}
+            className='rounded-lg p-1 hover:bg-black/5 dark:hover:bg-white/5'
+          >
+            <X className='size-4 text-muted-foreground' />
+          </button>
+        </div>
+
+        {/* Email input */}
+        <div className='mb-3 flex gap-2'>
+          <div className='flex flex-1 items-center gap-2 rounded-lg border border-black/10 bg-black/5 px-3 py-2 dark:border-white/10 dark:bg-white/5'>
+            <Mail className='size-4 text-muted-foreground' />
+            <input
+              type='email'
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder='Enter email address...'
+              className='flex-1 w-64 bg-transparent text-sm outline-none placeholder:text-muted-foreground'
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleShare();
+              }}
+            />
+          </div>
+          <button
+            onClick={handleShare}
+            disabled={!email.trim()}
+            className='rounded-lg bg-blue-500 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-600 disabled:opacity-50'
+          >
+            Share
+          </button>
+        </div>
+
+        <div className='my-3 h-px bg-black/5 dark:bg-white/5' />
+
+        {/* Public toggle */}
+        <button
+          onClick={handleTogglePublic}
+          className='flex w-full items-center gap-3 rounded-lg px-2 py-2 transition-colors hover:bg-black/5 dark:hover:bg-white/5'
+        >
+          <div
+            className={`flex size-8 items-center justify-center rounded-lg ${
+              isPublic ? "bg-blue-500/10 text-blue-500" : "bg-black/5 dark:bg-white/5"
+            }`}
+          >
+            <Globe className='size-4' />
+          </div>
+          <div className='flex-1 text-left'>
+            <p className='text-sm font-medium'>Public access</p>
+            <p className='text-[11px] text-muted-foreground'>
+              {isPublic ? "Anyone with link can view" : "Only invited people can view"}
+            </p>
+          </div>
+          <div
+            className={`flex size-5 items-center justify-center rounded-full ${
+              isPublic ? "bg-blue-500 text-white" : "border border-black/20 dark:border-white/20"
+            }`}
+          >
+            {isPublic && <Check className='size-3' />}
+          </div>
+        </button>
+      </motion.div>
     </>
   );
 }
@@ -76,17 +183,15 @@ function ToolbarButton({
 function FloatingToolbar({
   onFormat,
   activeFormats,
-  editorRef,
 }: {
   onFormat: (command: string, value?: string) => void;
   activeFormats: Set<string>;
-  editorRef: React.RefObject<HTMLDivElement | null>;
 }) {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.3, duration: 0.3 }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ delay: 0.2 }}
       className='absolute bottom-6 left-1/2 -translate-x-1/2'
     >
       <div className='flex items-center gap-0.5 rounded-full border border-white/10 bg-neutral-900 px-2 py-1.5 shadow-2xl backdrop-blur-md'>
@@ -164,16 +269,17 @@ export default function DocumentPage() {
   const fileId = params.id as string;
 
   const { files, updateFile, toggleStar, toggleShare } = useTextFlowStore();
+  const sidebarCollapsed = useTextFlowStore((s) => s.sidebarCollapsed);
+  const toggleSidebar = useTextFlowStore((s) => s.toggleSidebar);
+  const chatOpen = useTextFlowStore((s) => s.chatOpen);
+  const setChatOpen = useTextFlowStore((s) => s.setChatOpen);
+  const activeChatDocumentId = useTextFlowStore((s) => s.activeChatDocumentId);
+
   const [isSaving, setIsSaving] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
   const [activeFormats, setActiveFormats] = useState<Set<string>>(new Set());
   const [documentTitle, setDocumentTitle] = useState("");
   const editorRef = useRef<HTMLDivElement>(null);
-  const canvasRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    initializeDummyData();
-  }, []);
 
   const file = files.find((f) => f.id === fileId);
 
@@ -192,20 +298,16 @@ export default function DocumentPage() {
     if (!editorRef.current) return;
 
     const content = editorRef.current.innerText.trim();
-    if (!content) {
-      // Keep default "New" title if empty
-      return;
-    }
+    if (!content) return;
 
-    // Get first line or heading
     const firstLine = content.split("\n")[0].trim();
     if (firstLine && firstLine !== documentTitle) {
-      setDocumentTitle(firstLine.substring(0, 50)); // Limit to 50 chars
+      setDocumentTitle(firstLine.substring(0, 50));
       updateFile(fileId, { name: firstLine.substring(0, 50) });
     }
   }, [documentTitle, fileId, updateFile]);
 
-  // Format command handler with proper implementation
+  // Format command handler
   const handleFormat = useCallback((command: string, value?: string) => {
     const selection = window.getSelection();
     if (!selection || selection.rangeCount === 0) {
@@ -259,7 +361,6 @@ export default function DocumentPage() {
       if (document.queryCommandState("insertUnorderedList")) formats.add("unorderedList");
       if (document.queryCommandState("insertOrderedList")) formats.add("orderedList");
 
-      // Check for block formats
       const selection = window.getSelection();
       if (selection && selection.rangeCount > 0) {
         let node = selection.anchorNode;
@@ -275,7 +376,7 @@ export default function DocumentPage() {
         }
       }
     } catch {
-      // Ignore errors from queryCommandState
+      // Ignore errors
     }
 
     setActiveFormats(formats);
@@ -318,7 +419,6 @@ export default function DocumentPage() {
     setIsSaving(false);
   };
 
-  // Handle input - update title and check formats
   const handleInput = useCallback(() => {
     updateActiveFormats();
     updateTitleFromContent();
@@ -326,122 +426,150 @@ export default function DocumentPage() {
 
   if (!file) {
     return (
-      <div className='flex h-screen bg-[#F5F5F5] dark:bg-[#111]'>
-        <AppSidebar />
-        <main className='my-3 mr-3 flex flex-1 items-center justify-center rounded-2xl bg-white dark:bg-black'>
-          <div className='text-center'>
-            <h1 className='text-lg font-medium'>Document not found</h1>
-            <Link href='/dashboard' className='mt-2 block text-sm text-blue-500 hover:underline'>
-              Go back to files
-            </Link>
-          </div>
-        </main>
-      </div>
+      <main className='my-3 mr-3 flex flex-1 items-center justify-center rounded-2xl bg-[#FFF] dark:bg-[#0A0A0A]'>
+        <div className='text-center'>
+          <h1 className='text-lg font-medium'>Document not found</h1>
+          <Link href='/dashboard' className='mt-2 block text-sm text-blue-500 hover:underline'>
+            Go back to files
+          </Link>
+        </div>
+      </main>
     );
   }
 
   return (
-    <div className='flex h-screen bg-[#F5F5F5] dark:bg-[#111]'>
-      {/* Collapsible Sidebar */}
-      <AnimatePresence mode='wait'>
-        {!sidebarCollapsed ? (
-          <motion.div
-            key='sidebar'
-            initial={{ width: 0, opacity: 0 }}
-            animate={{ width: "auto", opacity: 1 }}
-            exit={{ width: 0, opacity: 0 }}
-            transition={{ duration: 0.2 }}
-          >
-            <AppSidebar />
-          </motion.div>
-        ) : (
-          <motion.div
-            key='collapsed'
-            initial={{ width: 0, opacity: 0 }}
-            animate={{ width: "auto", opacity: 1 }}
-            exit={{ width: 0, opacity: 0 }}
-            transition={{ duration: 0.2 }}
-          >
-            <CollapsedSidebar onExpand={() => setSidebarCollapsed(false)} />
-          </motion.div>
-        )}
-      </AnimatePresence>
+    <>
+      {/* Wrapper for main + chat pane as siblings */}
+      <div className='flex flex-1 my-3 mr-3 gap-1.5'>
+        {/* Main Document Editor */}
+        <motion.main
+          layout
+          className='relative flex flex-1 flex-col overflow-hidden rounded-2xl bg-[#FFF] dark:bg-[#0A0A0A]'
+          transition={{ type: "spring", stiffness: 300, damping: 30 }}
+        >
+          {/* Crosshairs */}
+          <Crosshairs />
 
-      {/* Main Editor Area - Full width with margins */}
-      <main
-        ref={canvasRef}
-        className='relative my-3 mr-3 flex flex-1 flex-col overflow-hidden rounded-2xl bg-white dark:bg-black'
-      >
-        {/* Crosshairs */}
-        <Crosshairs />
-
-        {/* Header */}
-        <header className='relative z-10 flex items-center justify-between px-6 py-4'>
-          <div className='flex items-center gap-3'>
-            <button
-              onClick={() => router.back()}
-              className='rounded-lg p-1.5 transition-colors hover:bg-black/5 dark:hover:bg-white/5'
-            >
-              <ChevronLeft className='size-4' />
-            </button>
-            <button
-              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-              className='rounded-lg p-1.5 text-xs text-muted-foreground transition-colors hover:bg-black/5 dark:hover:bg-white/5'
-            >
-              {sidebarCollapsed ? "Expand" : "Collapse"}
-            </button>
-            <div>
-              <h1 className='text-sm font-medium'>{documentTitle}</h1>
-              <p className='text-[10px] text-muted-foreground'>
-                {isSaving ? "Saving..." : "All changes saved"}
-              </p>
+          {/* Header */}
+          <header className='relative z-10 flex items-center justify-between px-6 py-4'>
+            <div className='flex items-center gap-3'>
+              <button
+                onClick={() => router.back()}
+                className='rounded-lg p-1.5 transition-colors hover:bg-black/5 dark:hover:bg-white/5'
+                title='Go back'
+              >
+                <ChevronLeft className='size-4' />
+              </button>
+              <button
+                onClick={toggleSidebar}
+                className='rounded-lg px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-black/5 dark:hover:bg-white/5'
+              >
+                {sidebarCollapsed ? "Expand" : "Collapse"}
+              </button>
+              <div className='ml-2'>
+                <motion.h1
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className='text-sm font-medium'
+                >
+                  {documentTitle}
+                </motion.h1>
+                <motion.p
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className='text-[10px] text-muted-foreground'
+                >
+                  {isSaving ? "Saving..." : "All changes saved"}
+                </motion.p>
+              </div>
             </div>
-          </div>
 
-          <div className='flex items-center gap-1'>
-            <button
-              onClick={() => toggleStar(fileId)}
-              className={`rounded-lg p-1.5 transition-colors ${
-                file.starred ? "text-amber-500" : "hover:bg-black/5 dark:hover:bg-white/5"
-              }`}
-            >
-              <Star className={`size-4 ${file.starred ? "fill-current" : ""}`} />
-            </button>
-            <button
-              onClick={() => toggleShare(fileId)}
-              className={`rounded-lg p-1.5 transition-colors ${
-                file.shared ? "text-purple-500" : "hover:bg-black/5 dark:hover:bg-white/5"
-              }`}
-            >
-              <Share2 className='size-4' />
-            </button>
-            <button
-              onClick={handleSave}
-              className='flex items-center gap-1.5 rounded-lg bg-neutral-100 px-3 py-1.5 text-xs font-medium transition-colors hover:bg-neutral-200 dark:bg-white/10 dark:hover:bg-white/15'
-            >
-              <Save className='size-3.5' />
-              <span>Save</span>
-            </button>
-            <button className='rounded-lg p-1.5 transition-colors hover:bg-black/5 dark:hover:bg-white/5'>
-              <MoreHorizontal className='size-4' />
-            </button>
-          </div>
-        </header>
+            <div className='flex items-center gap-1'>
+              {/* Star */}
+              <button
+                onClick={() => toggleStar(fileId)}
+                className={`rounded-lg p-2 transition-colors ${
+                  file.starred ? "text-amber-500" : "hover:bg-black/5 dark:hover:bg-white/5"
+                }`}
+                title={file.starred ? "Unstar" : "Star"}
+              >
+                <Star className={`size-4 ${file.starred ? "fill-current" : ""}`} />
+              </button>
 
-        {/* Editor Content - Full width */}
-        <div className='flex-1 overflow-y-auto px-8 py-4 [&::-webkit-scrollbar]:hidden'>
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className='mx-auto w-full max-w-4xl'
-          >
-            <div
-              ref={editorRef}
-              contentEditable
-              onInput={handleInput}
-              onSelect={updateActiveFormats}
-              onBlur={handleSave}
-              className='min-h-[60vh] w-full outline-none text-base leading-relaxed
+              {/* Share with popover */}
+              <div className='relative'>
+                <button
+                  onClick={() => setShareOpen(!shareOpen)}
+                  className={`rounded-lg p-2 transition-colors ${
+                    file.shared ? "text-blue-500" : "hover:bg-black/5 dark:hover:bg-white/5"
+                  }`}
+                  title='Share'
+                >
+                  <Share2 className='size-4' />
+                </button>
+                <AnimatePresence>
+                  {shareOpen && (
+                    <SharePopover
+                      isOpen={shareOpen}
+                      onClose={() => setShareOpen(false)}
+                      file={file}
+                    />
+                  )}
+                </AnimatePresence>
+              </div>
+
+              {/* Chat - visible for shared documents */}
+              {file.shared && (
+                <button
+                  onClick={() => {
+                    const { setChatOpen, setActiveChatDocument } = useTextFlowStore.getState();
+                    setActiveChatDocument(fileId);
+                    setChatOpen(true);
+                  }}
+                  className={`rounded-lg p-2 transition-colors hover:bg-black/5 dark:hover:bg-white/5 ${
+                    chatOpen
+                      ? "text-orange-500 bg-linear-to-br from-orange-400/20 to-orange-200/20"
+                      : "text-muted-foreground"
+                  }`}
+                  title='Open discussion'
+                >
+                  <MessageCircle className='size-4' />
+                </button>
+              )}
+
+              {/* Save - icon only */}
+              <button
+                onClick={handleSave}
+                className={`rounded-lg p-2 transition-colors hover:bg-black/5 dark:hover:bg-white/5 ${
+                  isSaving ? "animate-pulse" : ""
+                }`}
+                title='Save (⌘S)'
+              >
+                <Save className='size-4 text-muted-foreground' />
+              </button>
+            </div>
+          </header>
+
+          <div className='flex flex-1 overflow-hidden'>
+            {/* Editor Content - Resizable canvas */}
+            <motion.div
+              className='flex-1 overflow-y-auto px-19 pt-5 pb-4 [&::-webkit-scrollbar]:hidden'
+              animate={{ marginRight: chatOpen ? 0 : 0 }}
+              transition={{ type: "spring", stiffness: 300, damping: 30 }}
+            >
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.2 }}
+                className='mx-auto w-full'
+              >
+                <div
+                  ref={editorRef}
+                  contentEditable
+                  onInput={handleInput}
+                  onSelect={updateActiveFormats}
+                  onBlur={handleSave}
+                  className='min-h-[60vh] w-full outline-none text-base leading-relaxed
                 [&_h1]:text-3xl [&_h1]:font-bold [&_h1]:mb-4 [&_h1]:mt-6
                 [&_h2]:text-2xl [&_h2]:font-semibold [&_h2]:mb-3 [&_h2]:mt-5
                 [&_p]:mb-2
@@ -451,23 +579,29 @@ export default function DocumentPage() {
                 [&_blockquote]:border-l-4 [&_blockquote]:border-neutral-300 [&_blockquote]:pl-4 [&_blockquote]:italic [&_blockquote]:text-muted-foreground [&_blockquote]:my-4
                 [&_pre]:bg-neutral-100 [&_pre]:dark:bg-neutral-900 [&_pre]:p-4 [&_pre]:rounded-lg [&_pre]:font-mono [&_pre]:text-sm [&_pre]:my-4 [&_pre]:overflow-x-auto
                 [&_code]:bg-neutral-100 [&_code]:dark:bg-neutral-800 [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded [&_code]:font-mono [&_code]:text-sm'
-              style={{ whiteSpace: "pre-wrap" }}
-              suppressContentEditableWarning
-              data-placeholder='Start writing...'
+                  style={{ whiteSpace: "pre-wrap" }}
+                  suppressContentEditableWarning
+                  data-placeholder='Start writing...'
+                />
+              </motion.div>
+            </motion.div>
+          </div>
+
+          {/* Floating Toolbar */}
+          <FloatingToolbar onFormat={handleFormat} activeFormats={activeFormats} />
+        </motion.main>
+
+        {/* Chat Pane - Sibling to main */}
+        <AnimatePresence>
+          {chatOpen && (
+            <ChatPane
+              documentId={fileId}
+              documentName={file.name}
+              onClose={() => setChatOpen(false)}
             />
-          </motion.div>
-        </div>
-
-        {/* Floating Toolbar - Centered to canvas */}
-        <FloatingToolbar
-          onFormat={handleFormat}
-          activeFormats={activeFormats}
-          editorRef={editorRef}
-        />
-      </main>
-
-      <SearchModal />
-      <SettingsModal />
-    </div>
+          )}
+        </AnimatePresence>
+      </div>
+    </>
   );
 }
