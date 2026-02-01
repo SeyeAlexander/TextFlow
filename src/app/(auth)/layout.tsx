@@ -3,6 +3,7 @@
 import { ThemeToggle } from "@/components/shared/theme-toggle";
 import { DotLogo } from "@/components/shared/dot-logo";
 import { useEffect, useRef } from "react";
+import Link from "next/link";
 
 // Animated Dot Globe - a sphere made of dots that rotates
 function DotGlobe() {
@@ -163,9 +164,11 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
       {/* Left side - Auth form */}
       <div className='flex w-full flex-col items-center justify-center bg-background px-8 dark:bg-[#111] lg:w-1/2'>
         <div className='w-full max-w-sm'>
-          {/* Logo */}
+          {/* Logo - navigates to home */}
           <div className='mb-8'>
-            <DotLogo size='md' animated />
+            <Link href='/'>
+              <DotLogo size='md' animated />
+            </Link>
           </div>
 
           {/* Form content from children */}
