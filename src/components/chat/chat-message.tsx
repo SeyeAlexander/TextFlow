@@ -16,7 +16,15 @@ export function ChatMessage({ content, createdAt, user, isCurrentUser = false }:
       {/* Avatar */}
       <div className='shrink-0'>
         {user.avatar ? (
-          <div className={`size-8 rounded-full bg-gradient-to-br ${user.avatar}`} />
+          user.avatar.startsWith("http") || user.avatar.startsWith("/") ? (
+            <img
+              src={user.avatar}
+              alt={user.name}
+              className='size-8 rounded-full bg-neutral-200 dark:bg-neutral-800 object-cover'
+            />
+          ) : (
+            <div className={`size-8 rounded-full bg-gradient-to-br ${user.avatar}`} />
+          )
         ) : (
           <div className='flex size-8 items-center justify-center rounded-full bg-neutral-200 dark:bg-neutral-800 text-xs font-medium'>
             {user.name.charAt(0)}
