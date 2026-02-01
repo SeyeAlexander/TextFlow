@@ -103,7 +103,7 @@ function AvatarSelectionScreen({ onSelect }: { onSelect: (avatarUrl: string) => 
               className='relative group'
             >
               <div
-                className={`size-11 rounded-full bg-linear-to-br ${avatar.gradient} ring-2 ring-transparent hover:ring-blue-400 transition-all`}
+                className={`size-11 rounded-full bg-gradient-to-br ${avatar.gradient} ring-2 ring-transparent hover:ring-blue-400 transition-all`}
               />
             </motion.button>
           ))}
@@ -119,7 +119,7 @@ function AvatarSelectionScreen({ onSelect }: { onSelect: (avatarUrl: string) => 
               className='relative group'
             >
               <div
-                className={`size-11 rounded-full bg-linear-to-br ${avatar.gradient} ring-2 ring-transparent hover:ring-blue-400 transition-all`}
+                className={`size-11 rounded-full bg-gradient-to-br ${avatar.gradient} ring-2 ring-transparent hover:ring-blue-400 transition-all`}
               />
             </motion.button>
           ))}
@@ -207,7 +207,7 @@ export function ChatPane({ documentId, documentName, onClose }: ChatPaneProps) {
           {selectedAvatar && (
             <div className='relative -mr-1' title='You'>
               <div
-                className={`size-6 rounded-full bg-linear-to-br ${selectedAvatar} ring-2 ring-white dark:ring-[#0A0A0A]`}
+                className={`size-6 rounded-full bg-gradient-to-br ${selectedAvatar} ring-2 ring-white dark:ring-[#0A0A0A]`}
               />
               <div className='absolute -bottom-0.5 -right-0.5 size-2 rounded-full bg-green-500 ring-1 ring-white dark:ring-[#0A0A0A]' />
             </div>
@@ -216,7 +216,7 @@ export function ChatPane({ documentId, documentName, onClose }: ChatPaneProps) {
             <div key={user.id} className='relative -ml-1' title={user.name}>
               {user.avatar ? (
                 <div
-                  className={`size-6 rounded-full bg-linear-to-br ${user.avatar} ring-2 ring-white dark:ring-[#0A0A0A]`}
+                  className={`size-6 rounded-full bg-gradient-to-br ${user.avatar} ring-2 ring-white dark:ring-[#0A0A0A]`}
                 />
               ) : (
                 <div className='flex size-6 items-center justify-center rounded-full bg-neutral-200 dark:bg-neutral-700 text-[10px] font-medium ring-2 ring-white dark:ring-[#0A0A0A]'>
