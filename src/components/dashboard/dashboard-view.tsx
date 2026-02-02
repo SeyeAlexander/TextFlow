@@ -9,6 +9,7 @@ import { DocumentIcon } from "@/components/icons/document-icon";
 import { useQuery } from "@tanstack/react-query";
 import { fetchFolderContent } from "@/actions/data";
 import { TextFlowFolder } from "@/store/store";
+import DashboardLoading from "@/app/dashboard/loading";
 
 export function DashboardView() {
   const { data, isLoading } = useQuery({
@@ -20,11 +21,7 @@ export function DashboardView() {
   const files = data?.files || [];
 
   if (isLoading) {
-    return (
-      <div className='flex h-full items-center justify-center'>
-        <div className='h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent' />
-      </div>
-    );
+    return <DashboardLoading />;
   }
 
   return (

@@ -24,6 +24,7 @@ import { fetchDocumentById } from "@/actions/data";
 import { saveDocument, toggleStar, shareDocumentByEmail } from "@/actions/document";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { Skeleton } from "@/components/ui/skeleton";
 
 // Crosshairs Component
 function Crosshairs() {
@@ -38,6 +39,40 @@ function Crosshairs() {
       <div className='absolute bottom-4 right-4 h-6 w-px bg-blue-400 dark:bg-blue-500' />
       <div className='absolute bottom-4 right-4 h-px w-6 bg-blue-400 dark:bg-blue-500' />
     </>
+  );
+}
+
+function DocumentLoading() {
+  return (
+    <main className='my-3 mr-3 flex flex-1 flex-col overflow-hidden rounded-2xl bg-[#FFF] dark:bg-[#0A0A0A] relative'>
+      <Crosshairs />
+      <header className='relative z-10 flex items-center justify-between px-6 py-4'>
+        <div className='flex items-center gap-3'>
+          <Skeleton className='h-8 w-8 rounded-lg bg-black/4 dark:bg-white/4' />
+          <Skeleton className='h-4 w-16 rounded bg-black/4 dark:bg-white/4' />
+          <div className='ml-2 space-y-1'>
+            <Skeleton className='h-4 w-32 rounded bg-black/4 dark:bg-white/4' />
+            <Skeleton className='h-3 w-20 rounded bg-black/4 dark:bg-white/4' />
+          </div>
+        </div>
+        <div className='flex items-center gap-1'>
+          <Skeleton className='h-8 w-8 rounded-lg bg-black/4 dark:bg-white/4' />
+          <Skeleton className='h-8 w-8 rounded-lg bg-black/4 dark:bg-white/4' />
+          <Skeleton className='h-8 w-8 rounded-lg bg-black/4 dark:bg-white/4' />
+        </div>
+      </header>
+      <div className='flex-1 px-20 py-10 space-y-4'>
+        <Skeleton className='h-10 w-3/4 bg-black/4 dark:bg-white/4' />
+        <Skeleton className='h-4 w-full bg-black/4 dark:bg-white/4' />
+        <Skeleton className='h-4 w-full bg-black/4 dark:bg-white/4' />
+        <Skeleton className='h-4 w-2/3 bg-black/4 dark:bg-white/4' />
+        <div className='pt-8 space-y-4'>
+          <Skeleton className='h-4 w-full bg-black/4 dark:bg-white/4' />
+          <Skeleton className='h-4 w-full bg-black/4 dark:bg-white/4' />
+          <Skeleton className='h-4 w-3/4 bg-black/4 dark:bg-white/4' />
+        </div>
+      </div>
+    </main>
   );
 }
 
@@ -226,11 +261,7 @@ export function DocumentView({ fileId }: { fileId: string }) {
   );
 
   if (isLoading) {
-    return (
-      <main className='my-3 mr-3 flex flex-1 items-center justify-center rounded-2xl bg-[#FFF] dark:bg-[#0A0A0A]'>
-        <div className='h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent' />
-      </main>
-    );
+    return <DocumentLoading />;
   }
 
   if (!file) {

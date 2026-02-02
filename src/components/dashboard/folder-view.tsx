@@ -12,6 +12,7 @@ import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { TextFlowFolder } from "@/store/store";
+import DashboardLoading from "@/app/dashboard/loading";
 
 interface FolderViewProps {
   folderId: string;
@@ -27,11 +28,7 @@ export function FolderView({ folderId }: FolderViewProps) {
   const files = data?.files || [];
 
   if (isLoading) {
-    return (
-      <div className='flex h-full items-center justify-center'>
-        <div className='h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent' />
-      </div>
-    );
+    return <DashboardLoading />;
   }
 
   if (error) {
