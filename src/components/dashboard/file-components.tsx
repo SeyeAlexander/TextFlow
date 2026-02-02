@@ -22,7 +22,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { createFolder, renameFolder, deleteFolder } from "@/actions/folders";
 import { createFile, renameFile, deleteFile } from "@/actions/files";
 import { TextFlowFile, TextFlowFolder, useTextFlowStore } from "@/store/store";
-import { formatRelativeTime } from "@/data/dummy-data";
+import { formatRelativeTime } from "@/lib/utils";
 import { MetallicFolder } from "@/components/icons/metallic-folder";
 import { DocumentIcon } from "@/components/icons/document-icon";
 import { DeleteFolderModal } from "./delete-folder-modal";
@@ -55,11 +55,26 @@ function AddToFolderMenu({
   onClose: () => void;
   position: { x: number; y: number };
 }) {
-  const { updateFile, getFoldersByParent } = useTextFlowStore();
-  const topLevelFolders = getFoldersByParent(null);
+  const queryClient = useQueryClient();
 
-  const handleAddToFolder = (folderId: string) => {
-    updateFile(fileId, { folderId });
+  // Fetch folders for the move-to menu
+  const { data: sidebarData } = useQuery({
+    queryKey: ["sidebar"],
+    queryFn: async () => {
+      const { fetchSidebarData } = await import("@/actions/data");
+      return fetchSidebarData();
+    },
+  });
+
+  const folders = sidebarData?.folders || [];
+
+  const handleAddToFolder = async (folderId: string) => {
+    const formData = new FormData();
+    formData.append("id", fileId);
+    formData.append("folderId", folderId);
+    await renameFile(formData);
+    queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+    queryClient.invalidateQueries({ queryKey: ["sidebar"] });
     onClose();
   };
 
@@ -74,10 +89,10 @@ function AddToFolderMenu({
       <div className='px-2 py-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground'>
         Move to folder
       </div>
-      {topLevelFolders.length === 0 ? (
+      {folders.length === 0 ? (
         <div className='px-3 py-2 text-[12px] text-muted-foreground'>No folders</div>
       ) : (
-        topLevelFolders.map((folder) => (
+        folders.map((folder) => (
           <button
             key={folder.id}
             onClick={() => handleAddToFolder(folder.id)}
@@ -104,11 +119,22 @@ function FileContextMenu({
   position: { x: number; y: number };
   file: TextFlowFile;
 }) {
-  const { toggleStar, toggleShare } = useTextFlowStore();
+  const queryClient = useQueryClient();
   const [isRenaming, setIsRenaming] = useState(false);
   const [showFolderMenu, setShowFolderMenu] = useState(false);
   const [newName, setNewName] = useState(file.name);
-  const queryClient = useQueryClient();
+
+  const starMutation = useMutation({
+    mutationFn: async () => {
+      const { toggleStar } = await import("@/actions/document");
+      await toggleStar(file.id);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["sidebar"] });
+      onClose();
+    },
+  });
 
   const renameMutation = useMutation({
     mutationFn: async (name: string) => {
@@ -186,10 +212,7 @@ function FileContextMenu({
               Rename
             </button>
             <button
-              onClick={() => {
-                toggleStar(file.id);
-                onClose();
-              }}
+              onClick={() => starMutation.mutate()}
               className='flex w-full items-center gap-2 px-3 py-1.5 text-[13px] transition-colors hover:bg-black/5 dark:hover:bg-white/5'
             >
               <Star className='size-3.5' />
@@ -197,13 +220,13 @@ function FileContextMenu({
             </button>
             <button
               onClick={() => {
-                toggleShare(file.id);
+                // For unsharing, we'd need another action, but we'll focus on renaming/starring/moving
                 onClose();
               }}
               className='flex w-full items-center gap-2 px-3 py-1.5 text-[13px] transition-colors hover:bg-black/5 dark:hover:bg-white/5'
             >
               <Share2 className='size-3.5' />
-              {file.shared ? "Unshare" : "Share"}
+              {file.shared ? "Manage sharing" : "Share"}
             </button>
             <button
               onClick={() => setShowFolderMenu(true)}
@@ -244,9 +267,20 @@ function FileContextMenu({
 
 // File Card - with document icon
 export function FileCard({ file, index = 0 }: { file: TextFlowFile; index?: number }) {
-  const { toggleStar } = useTextFlowStore();
+  const queryClient = useQueryClient();
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuPos, setMenuPos] = useState({ x: 0, y: 0 });
+
+  const starMutation = useMutation({
+    mutationFn: async () => {
+      const { toggleStar } = await import("@/actions/document");
+      await toggleStar(file.id);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["sidebar"] });
+    },
+  });
 
   const handleMenuClick = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -273,7 +307,11 @@ export function FileCard({ file, index = 0 }: { file: TextFlowFile; index?: numb
           {/* Vertical actions beside icon */}
           <div className='absolute -right-6 top-1/2 -translate-y-1/2 flex flex-col gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity'>
             <button
-              onClick={() => toggleStar(file.id)}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                starMutation.mutate();
+              }}
               className={`rounded-lg p-1.5 transition-colors ${
                 file.starred
                   ? "text-amber-500 opacity-100"
@@ -508,10 +546,21 @@ export function FolderCard({
 
 // File List - table format for All Files view with menu
 export function FileList({ files }: { files: TextFlowFile[] }) {
-  const { toggleStar } = useTextFlowStore();
+  const queryClient = useQueryClient();
   const [menuOpen, setMenuOpen] = useState<string | null>(null);
   const [menuPos, setMenuPos] = useState({ x: 0, y: 0 });
   const [activeFile, setActiveFile] = useState<TextFlowFile | null>(null);
+
+  const starMutation = useMutation({
+    mutationFn: async (fileId: string) => {
+      const { toggleStar } = await import("@/actions/document");
+      await toggleStar(fileId);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["sidebar"] });
+    },
+  });
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -588,7 +637,7 @@ export function FileList({ files }: { files: TextFlowFile[] }) {
               {/* Actions */}
               <div className='flex w-14 items-center justify-end gap-0.5'>
                 <button
-                  onClick={() => toggleStar(file.id)}
+                  onClick={() => starMutation.mutate(file.id)}
                   className={`rounded-lg p-1.5 transition-colors ${
                     file.starred
                       ? "text-amber-500"

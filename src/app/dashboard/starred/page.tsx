@@ -8,14 +8,20 @@ import { Star } from "lucide-react";
 import { EmptyState } from "@/components/dashboard/empty-state";
 import { DocumentIcon } from "@/components/icons/document-icon";
 
+import { useQuery } from "@tanstack/react-query";
+import { fetchStarredFiles } from "@/actions/data";
+
 export default function StarredPage() {
-  const { getStarredFiles, setView } = useTextFlowStore();
+  const { setView } = useTextFlowStore();
 
   useEffect(() => {
     setView("starred");
   }, [setView]);
 
-  const starredFiles = getStarredFiles();
+  const { data: starredFiles = [], isLoading } = useQuery({
+    queryKey: ["starred-files"],
+    queryFn: fetchStarredFiles,
+  });
 
   return (
     <main className='my-3 mr-3 flex-1 overflow-y-auto rounded-2xl bg-white dark:bg-[#0A0A0A]'>

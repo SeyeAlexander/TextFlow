@@ -8,14 +8,20 @@ import { Users } from "lucide-react";
 import { EmptyState } from "@/components/dashboard/empty-state";
 import { DocumentIcon } from "@/components/icons/document-icon";
 
+import { useQuery } from "@tanstack/react-query";
+import { fetchSharedFiles } from "@/actions/data";
+
 export default function SharedPage() {
-  const { getSharedFiles, setView } = useTextFlowStore();
+  const { setView } = useTextFlowStore();
 
   useEffect(() => {
     setView("shared");
   }, [setView]);
 
-  const sharedFiles = getSharedFiles();
+  const { data: sharedFiles = [], isLoading } = useQuery({
+    queryKey: ["shared-files"],
+    queryFn: fetchSharedFiles,
+  });
 
   return (
     <main className='my-3 mr-3 flex-1 overflow-y-auto rounded-2xl bg-white dark:bg-[#0A0A0A]'>

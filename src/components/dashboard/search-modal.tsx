@@ -4,15 +4,23 @@ import { useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Search, FileText, X } from "lucide-react";
 import { useTextFlowStore } from "@/store/store";
-import { formatRelativeTime } from "@/data/dummy-data";
+import { formatRelativeTime } from "@/lib/utils";
 import { useRouter } from "next/navigation";
+
+import { useQuery } from "@tanstack/react-query";
+import { searchDocuments } from "@/actions/data";
 
 export function SearchModal() {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
-  const { searchOpen, setSearchOpen, searchQuery, setSearchQuery, searchFiles } =
-    useTextFlowStore();
-  const results = searchQuery.length > 0 ? searchFiles(searchQuery) : [];
+  const { searchOpen, setSearchOpen, searchQuery, setSearchQuery } = useTextFlowStore();
+
+  const { data: results = [], isLoading } = useQuery({
+    queryKey: ["search", searchQuery],
+    queryFn: () => (searchQuery.length > 0 ? searchDocuments(searchQuery) : []),
+    enabled: searchQuery.length > 0,
+    staleTime: 1000 * 60, // 1 minute
+  });
 
   // Focus input when modal opens
   useEffect(() => {

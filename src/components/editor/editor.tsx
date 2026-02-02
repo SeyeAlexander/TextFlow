@@ -115,7 +115,7 @@ export function Editor({ initialContent, onChange, readOnly = false, documentId 
             <FloatingToolbarPlugin />
             <SlashCommandPlugin />
             <CodeActionMenuPlugin />
-            <ToolbarPlugin />
+            <ToolbarPlugin documentId={documentId} />
           </>
         )}
 

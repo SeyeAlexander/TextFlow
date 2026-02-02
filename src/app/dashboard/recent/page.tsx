@@ -8,14 +8,20 @@ import { Clock } from "lucide-react";
 import { EmptyState } from "@/components/dashboard/empty-state";
 import { DocumentIcon } from "@/components/icons/document-icon";
 
+import { useQuery } from "@tanstack/react-query";
+import { fetchRecentFiles } from "@/actions/data";
+
 export default function RecentPage() {
-  const { getRecentFiles, setView } = useTextFlowStore();
+  const { setView } = useTextFlowStore();
 
   useEffect(() => {
     setView("recent");
   }, [setView]);
 
-  const recentFiles = getRecentFiles();
+  const { data: recentFiles = [], isLoading } = useQuery({
+    queryKey: ["recent-files"],
+    queryFn: fetchRecentFiles,
+  });
 
   return (
     <main className='my-3 mr-3 flex-1 overflow-y-auto rounded-2xl bg-white dark:bg-[#0A0A0A]'>

@@ -59,7 +59,7 @@ export function DashboardView() {
                 <FolderCard
                   key={folder.id}
                   folder={folder}
-                  fileCount={0} // TODO: Add file count to query later
+                  fileCount={folder.fileCount ?? 0}
                   index={index}
                 />
               ))}

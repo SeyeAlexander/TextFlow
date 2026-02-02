@@ -5,11 +5,113 @@ import { motion } from "framer-motion";
 import { ChatMessage } from "./chat-message";
 import { ChatInput } from "./chat-input";
 import { useTextFlowStore } from "@/store/store";
-import { Users, MessageCircle, X } from "lucide-react";
+import { Users, MessageCircle, X, Sparkles } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
-import { createChat, getChats, getMessages, sendMessage } from "@/actions/chat";
+import { createDocumentChat, getChatForDocument, getMessages, sendMessage } from "@/actions/chat";
+import { updateUserAvatar } from "@/actions/user";
 import { toast } from "sonner";
 import { useUser } from "@/hooks/use-user";
+
+// Gradient avatar options - 8 total
+const AVATAR_OPTIONS = [
+  { id: "gradient-1", gradient: "from-violet-500 to-purple-500" },
+  { id: "gradient-2", gradient: "from-pink-500 to-rose-500" },
+  { id: "gradient-3", gradient: "from-cyan-500 to-blue-500" },
+  { id: "gradient-4", gradient: "from-emerald-500 to-teal-500" },
+  { id: "gradient-5", gradient: "from-amber-500 to-orange-500" },
+  { id: "gradient-6", gradient: "from-indigo-500 to-violet-500" },
+  { id: "gradient-7", gradient: "from-rose-500 to-pink-500" },
+  { id: "gradient-8", gradient: "from-teal-500 to-cyan-500" },
+];
+
+function AvatarSelectionScreen({ onSelect }: { onSelect: (gradient: string) => void }) {
+  const [isPending, startTransition] = useTransition();
+
+  const handleSelect = (gradient: string) => {
+    startTransition(() => {
+      onSelect(gradient);
+    });
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className='flex flex-col items-center justify-center h-full p-6 text-center'
+    >
+      <motion.div
+        animate={{
+          scale: [1, 1.1, 1],
+          rotate: [0, 5, -5, 0],
+        }}
+        transition={{
+          duration: 4,
+          repeat: Infinity,
+          ease: "easeInOut",
+        }}
+        className='flex size-14 items-center justify-center rounded-2xl mb-4'
+      >
+        <Sparkles className='size-10 text-blue-500' />
+      </motion.div>
+
+      <h3 className='text-lg font-semibold mb-2'>Start a Discussion</h3>
+      <p className='text-sm text-muted-foreground mb-6 max-w-[240px]'>
+        Collaborate with your team in real-time. Pick an avatar to join.
+      </p>
+
+      <p className='text-xs font-medium text-muted-foreground mb-3 uppercase tracking-wide'>
+        Choose your avatar
+      </p>
+      <div className='flex flex-col gap-3 items-center'>
+        <div className='flex gap-3'>
+          {AVATAR_OPTIONS.slice(0, 5).map((avatar) => (
+            <motion.button
+              key={avatar.id}
+              whileHover={{ scale: 1.1, y: -2 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => handleSelect(avatar.gradient)}
+              className='relative group overflow-hidden rounded-full'
+              disabled={isPending}
+            >
+              <div
+                className={`size-11 rounded-full bg-linear-to-br ${avatar.gradient} animate-[spin_4s_linear_infinite] opacity-90 hover:opacity-100 transition-all`}
+                style={{ filter: "blur(4px)" }}
+              />
+              <div
+                className={`absolute inset-0 size-11 rounded-full bg-linear-to-br ${avatar.gradient} opacity-80`}
+              />
+            </motion.button>
+          ))}
+        </div>
+        <div className='flex gap-3'>
+          {AVATAR_OPTIONS.slice(5, 8).map((avatar) => (
+            <motion.button
+              key={avatar.id}
+              whileHover={{ scale: 1.1, y: -2 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => handleSelect(avatar.gradient)}
+              className='relative group overflow-hidden rounded-full'
+              disabled={isPending}
+            >
+              <div
+                className={`size-11 rounded-full bg-linear-to-br ${avatar.gradient} animate-[spin_4s_linear_infinite] opacity-90 hover:opacity-100 transition-all`}
+                style={{ filter: "blur(4px)" }}
+              />
+              <div
+                className={`absolute inset-0 size-11 rounded-full bg-linear-to-br ${avatar.gradient} opacity-80`}
+              />
+            </motion.button>
+          ))}
+        </div>
+      </div>
+      {isPending && (
+        <p className='text-xs text-muted-foreground mt-4 animate-pulse'>
+          Setting up your profile...
+        </p>
+      )}
+    </motion.div>
+  );
+}
 
 interface ChatPaneProps {
   documentId: string;
@@ -24,46 +126,57 @@ export function ChatPane({ documentId, documentName, onClose }: ChatPaneProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [isPending, startTransition] = useTransition();
   const { user: currentUser } = useUser();
+  const [hasAvatar, setHasAvatar] = useState(false);
+
+  // Check if user already has avatar
+  useEffect(() => {
+    if (currentUser?.user_metadata?.avatar_url) {
+      setHasAvatar(true);
+    }
+  }, [currentUser]);
+
+  const handleAvatarSelect = async (gradient: string) => {
+    if (!currentUser) return;
+
+    // 1. Optimistic Update
+    setHasAvatar(true);
+
+    // 2. Server Update
+    const result = await updateUserAvatar(gradient);
+    if (result?.error) {
+      toast.error("Failed to save avatar");
+      setHasAvatar(false);
+    }
+  };
 
   // Initialize Chat
   useEffect(() => {
-    if (!currentUser) return;
+    if (!currentUser || !hasAvatar) return; // Only init chat if avatar is set
 
     const initChat = async () => {
-      // For now, we try to find a chat with name 'doc:{id}' or create one with just self
-      // Ideally, we'd add all collaborators.
-      const chatName = `doc:${documentId}`;
+      // Try to find existing document chat
+      const existingChat = await getChatForDocument(documentId);
 
-      // Fetch user chats and look for one with this name
-      const chats = await getChats();
-      let targetChat = chats.find((c) => c.name === chatName);
-
-      if (!targetChat) {
-        // Create new
-        const result = await createChat([currentUser.id]); // Just self for now as 'Notes'
+      if (existingChat) {
+        setChatId(existingChat.id);
+      } else {
+        // Create if doesn't exist (and add current user)
+        const result = await createDocumentChat(documentId, [currentUser.id]);
         if (result.success && result.chatId) {
           setChatId(result.chatId);
-          // Updating name is tricky as createChat sets generic name.
-          // We should ideally pass name to createChat or update it immediately.
-          // But for this prototype, we'll accept 'dm' or 'New Group'.
-          // Actually, let's just use the ID we got.
         }
-      } else {
-        setChatId(targetChat.id);
       }
     };
 
     initChat();
-  }, [currentUser, documentId]);
+  }, [currentUser, documentId, hasAvatar]);
 
   // Load Messages & Realtime
   useEffect(() => {
     if (!chatId) return;
 
-    // Load initial
     getMessages(chatId).then(setMessages);
 
-    // Subscribe
     const supabase = createClient();
     const channel = supabase
       .channel(`chat:${chatId}`)
@@ -76,13 +189,6 @@ export function ChatPane({ documentId, documentName, onClose }: ChatPaneProps) {
           filter: `chat_id=eq.${chatId}`,
         },
         async (payload) => {
-          // Fetch the new message details (need sender info)
-          // For optimization, we could just optimistically add if we knew the sender,
-          // but payload only has IDs.
-          const newMsg = payload.new;
-          // In a real app, we'd fetch the single message or sender profile.
-          // For now, re-fetch all is safe but inefficient.
-          // Better: append payload and placeholder sender until revalidation.
           const fresh = await getMessages(chatId);
           setMessages(fresh);
         },
@@ -97,12 +203,11 @@ export function ChatPane({ documentId, documentName, onClose }: ChatPaneProps) {
   // Auto-scroll
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages.length]);
+  }, [messages.length, hasAvatar]); // Scroll when avatar view changes too
 
   const handleSendMessage = async (content: string) => {
     if (!chatId || !currentUser) return;
 
-    // Optimistic Update
     const tempId = Math.random().toString();
     const optimisticMsg = {
       id: tempId,
@@ -110,7 +215,7 @@ export function ChatPane({ documentId, documentName, onClose }: ChatPaneProps) {
       createdAt: new Date(),
       senderId: currentUser.id,
       senderName: "You",
-      senderAvatar: null,
+      senderAvatar: currentUser.user_metadata?.avatar_url,
     };
     setMessages((prev) => [...prev, optimisticMsg]);
 
@@ -139,11 +244,12 @@ export function ChatPane({ documentId, documentName, onClose }: ChatPaneProps) {
           </div>
           <div className='min-w-0'>
             <h3 className='text-sm font-medium truncate'>{documentName}</h3>
-            {/* Simple status */}
-            <div className='flex items-center gap-1 text-[10px] text-muted-foreground'>
-              <span className='size-1.5 rounded-full bg-green-500' />
-              <span>Online</span>
-            </div>
+            {hasAvatar && (
+              <div className='flex items-center gap-1 text-[10px] text-muted-foreground'>
+                <span className='size-1.5 rounded-full bg-green-500' />
+                <span>Online</span>
+              </div>
+            )}
           </div>
         </div>
         <button
@@ -154,50 +260,55 @@ export function ChatPane({ documentId, documentName, onClose }: ChatPaneProps) {
         </button>
       </div>
 
-      {/* Messages */}
-      <div className='flex-1 overflow-y-auto p-4 space-y-3'>
-        {messages.length === 0 ? (
-          <div className='flex flex-col items-center justify-center h-full text-center'>
-            <div className='flex size-10 items-center justify-center rounded-full bg-neutral-100 dark:bg-neutral-800 mb-3'>
-              <MessageCircle className='size-4 text-muted-foreground' />
-            </div>
-            <p className='text-sm text-muted-foreground'>No messages yet</p>
+      {!hasAvatar ? (
+        <AvatarSelectionScreen onSelect={handleAvatarSelect} />
+      ) : (
+        <>
+          {/* Messages */}
+          <div className='flex-1 overflow-y-auto p-4 space-y-3'>
+            {messages.length === 0 ? (
+              <div className='flex flex-col items-center justify-center h-full text-center'>
+                <div className='flex size-10 items-center justify-center rounded-full bg-neutral-100 dark:bg-neutral-800 mb-3'>
+                  <MessageCircle className='size-4 text-muted-foreground' />
+                </div>
+                <p className='text-sm text-muted-foreground'>No messages yet</p>
+              </div>
+            ) : (
+              <>
+                {messages.map((message) => {
+                  const isCurrentUser = message.senderId === currentUser?.id;
+                  const user = {
+                    id: message.senderId,
+                    name: message.senderName || "Unknown",
+                    avatar: message.senderAvatar,
+                    email: "",
+                    color: "blue",
+                  };
+
+                  return (
+                    <ChatMessage
+                      key={message.id}
+                      content={message.content}
+                      createdAt={new Date(message.createdAt)}
+                      user={user as any}
+                      isCurrentUser={isCurrentUser}
+                    />
+                  );
+                })}
+                <div ref={messagesEndRef} />
+              </>
+            )}
           </div>
-        ) : (
-          <>
-            {messages.map((message) => {
-              const isCurrentUser = message.senderId === currentUser?.id;
-              // Map backend message to UI props
-              const user = {
-                id: message.senderId,
-                name: message.senderName || "Unknown",
-                avatar: message.senderAvatar,
-                email: "",
-                color: "blue", // Fallback
-              };
 
-              return (
-                <ChatMessage
-                  key={message.id}
-                  content={message.content}
-                  createdAt={new Date(message.createdAt)}
-                  user={user as any}
-                  isCurrentUser={isCurrentUser}
-                />
-              );
-            })}
-            <div ref={messagesEndRef} />
-          </>
-        )}
-      </div>
-
-      {/* Input */}
-      <ChatInput
-        onSend={handleSendMessage}
-        onTypingChange={setIsTyping}
-        placeholder='Type a message...'
-        disabled={!chatId}
-      />
+          {/* Input */}
+          <ChatInput
+            onSend={handleSendMessage}
+            onTypingChange={setIsTyping}
+            placeholder='Type a message...'
+            disabled={!chatId}
+          />
+        </>
+      )}
     </motion.div>
   );
 }

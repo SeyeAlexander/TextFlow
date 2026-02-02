@@ -5,34 +5,91 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { ChatMessage } from "./chat-message";
 import { ChatInput } from "./chat-input";
 import { useTextFlowStore } from "@/store/store";
-import { CURRENT_USER_ID } from "@/data/dummy-data";
+import { useUser } from "@/hooks/use-user";
 import { Users, MessageCircle } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { fetchDocumentById } from "@/actions/data";
+
+import { getMessages, sendMessage as sendMessageAction, getChatForDocument } from "@/actions/chat";
+import { createClient } from "@/utils/supabase/client";
+import { updateUserAvatar } from "@/actions/user";
+import { toast } from "sonner";
+
+const AVATAR_GRADIENTS = [
+  "from-purple-500 to-blue-500",
+  "from-orange-400 to-rose-400",
+  "from-emerald-400 to-cyan-400",
+  "from-pink-500 to-amber-500",
+  "from-indigo-500 to-purple-500",
+  "from-blue-600 to-violet-600",
+  "from-red-500 to-orange-500",
+  "from-teal-400 to-blue-500",
+];
 
 export function DiscussionSheet() {
+  const { user: currentUser } = useUser();
   const chatOpen = useTextFlowStore((s) => s.chatOpen);
   const setChatOpen = useTextFlowStore((s) => s.setChatOpen);
   const activeChatDocumentId = useTextFlowStore((s) => s.activeChatDocumentId);
-  const getMessagesByDocument = useTextFlowStore((s) => s.getMessagesByDocument);
-  const getDocumentCollaborators = useTextFlowStore((s) => s.getDocumentCollaborators);
-  const getUserById = useTextFlowStore((s) => s.getUserById);
-  const sendMessage = useTextFlowStore((s) => s.sendMessage);
-  const files = useTextFlowStore((s) => s.files);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Get current document
-  const currentDocument = files.find((f) => f.id === activeChatDocumentId);
-  const messages = activeChatDocumentId ? getMessagesByDocument(activeChatDocumentId) : [];
-  const collaborators = activeChatDocumentId ? getDocumentCollaborators(activeChatDocumentId) : [];
+  // 1. Fetch Chat Info for the document
+  const { data: chat } = useQuery({
+    queryKey: ["chat", activeChatDocumentId],
+    queryFn: () => (activeChatDocumentId ? getChatForDocument(activeChatDocumentId) : null),
+    enabled: !!activeChatDocumentId,
+  });
+
+  // 2. Fetch Messages for the chat
+  const { data: messages = [], refetch: refetchMessages } = useQuery({
+    queryKey: ["messages", chat?.id],
+    queryFn: () => (chat?.id ? getMessages(chat.id) : []),
+    enabled: !!chat?.id,
+  });
+
+  const { data: currentDocument } = useQuery({
+    queryKey: ["document", activeChatDocumentId],
+    queryFn: () => (activeChatDocumentId ? fetchDocumentById(activeChatDocumentId) : null),
+    enabled: !!activeChatDocumentId,
+  });
+
+  // 3. Realtime subscription for new messages
+  useEffect(() => {
+    if (!chat?.id) return;
+
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`chat:${chat.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "messages",
+          filter: `chat_id=eq.${chat.id}`,
+        },
+        () => {
+          refetchMessages();
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [chat?.id, refetchMessages]);
+
+  const collaborators = (chat as any)?.participants || [];
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length]);
 
-  const handleSendMessage = (content: string) => {
-    if (!activeChatDocumentId) return;
-    sendMessage(activeChatDocumentId, CURRENT_USER_ID, content);
+  const handleSendMessage = async (content: string) => {
+    if (!chat?.id || !currentUser) return;
+    await sendMessageAction(chat.id, content);
   };
 
   return (
@@ -47,13 +104,13 @@ export function DiscussionSheet() {
             <div className='flex size-9 items-center justify-center rounded-lg bg-orange-500/10'>
               <MessageCircle className='size-4 text-orange-500' />
             </div>
-            <div className='flex-1 min-w-0'>
+            <div className='flex-1 min-w-0 text-left'>
               <SheetTitle className='text-sm font-medium truncate'>
                 {currentDocument?.name || "Discussion"}
               </SheetTitle>
               <div className='flex items-center gap-1 text-xs text-muted-foreground'>
                 <Users className='size-3' />
-                <span>{collaborators.length + 1} participants</span>
+                <span>{collaborators.length > 0 ? collaborators.length : 1} participants</span>
               </div>
             </div>
           </div>
@@ -61,17 +118,15 @@ export function DiscussionSheet() {
           {/* Collaborator Avatars */}
           {collaborators.length > 0 && (
             <div className='flex items-center gap-1 mt-3'>
-              {collaborators.slice(0, 5).map((user) => (
-                <div key={user.id} className='relative group' title={user.name}>
-                  {user.avatar ? (
-                    <img
-                      src={user.avatar}
-                      alt={user.name}
-                      className='size-7 rounded-full ring-2 ring-white dark:ring-[#0A0A0A]'
+              {collaborators.slice(0, 5).map((user: any) => (
+                <div key={user.id} className='relative group' title={user.fullName}>
+                  {user.avatarUrl ? (
+                    <div
+                      className={`size-7 rounded-full ring-2 ring-white dark:ring-[#0A0A0A] bg-linear-to-br ${user.avatarUrl}`}
                     />
                   ) : (
                     <div className='flex size-7 items-center justify-center rounded-full bg-neutral-200 dark:bg-neutral-700 text-xs font-medium ring-2 ring-white dark:ring-[#0A0A0A]'>
-                      {user.name.charAt(0)}
+                      {user.fullName?.charAt(0) || user.email?.charAt(0)}
                     </div>
                   )}
                 </div>
@@ -87,6 +142,30 @@ export function DiscussionSheet() {
 
         {/* Messages */}
         <div className='flex-1 overflow-y-auto p-4 space-y-4'>
+          {currentUser && !currentUser.user_metadata?.avatar_url && (
+            <div className='mb-6 rounded-xl border border-orange-500/20 bg-orange-500/5 p-4'>
+              <p className='mb-3 text-xs font-medium text-orange-600 dark:text-orange-400'>
+                Choose your avatar to start chatting
+              </p>
+              <div className='grid grid-cols-4 gap-2'>
+                {AVATAR_GRADIENTS.map((gradient) => (
+                  <button
+                    key={gradient}
+                    onClick={async () => {
+                      try {
+                        await updateUserAvatar(gradient);
+                        toast.success("Avatar updated!");
+                      } catch (e) {
+                        toast.error("Failed to update avatar");
+                      }
+                    }}
+                    className={`size-8 rounded-full bg-linear-to-br transition-transform hover:scale-110 active:scale-95 ${gradient}`}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
           {messages.length === 0 ? (
             <div className='flex flex-col items-center justify-center h-full text-center'>
               <div className='flex size-12 items-center justify-center rounded-full bg-neutral-100 dark:bg-neutral-800 mb-3'>
@@ -97,16 +176,20 @@ export function DiscussionSheet() {
             </div>
           ) : (
             <>
-              {messages.map((message) => {
-                const user = getUserById(message.userId);
-                if (!user) return null;
+              {messages.map((message: any) => {
+                const user = {
+                  id: message.senderId,
+                  name: message.senderName || "Unknown",
+                  avatar: message.senderAvatar,
+                  email: "", // Added for type compliance
+                };
                 return (
                   <ChatMessage
                     key={message.id}
                     content={message.content}
                     createdAt={message.createdAt}
                     user={user}
-                    isCurrentUser={message.userId === CURRENT_USER_ID}
+                    isCurrentUser={message.senderId === currentUser?.id}
                   />
                 );
               })}
@@ -119,7 +202,7 @@ export function DiscussionSheet() {
         <ChatInput
           onSend={handleSendMessage}
           placeholder='Type a message...'
-          disabled={!activeChatDocumentId}
+          disabled={!activeChatDocumentId || !chat}
         />
       </SheetContent>
     </Sheet>

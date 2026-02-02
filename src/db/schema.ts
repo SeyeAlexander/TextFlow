@@ -38,6 +38,7 @@ export const documents = pgTable("documents", {
   content: jsonb("content").default({}), // Lexical JSON
   yjsState: text("yjs_state"), // Stored as base64 or bytea. Using text/base64 for simplicity in prototype
   isPublic: boolean("is_public").default(false),
+  isStarred: boolean("is_starred").default(false),
   lastAccessedAt: timestamp("last_accessed_at").defaultNow(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -56,6 +57,7 @@ export const chats = pgTable("chats", {
   name: text("name"), // Nullable for DMs
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  documentId: uuid("document_id").references(() => documents.id, { onDelete: "cascade" }),
 });
 
 export const chatParticipants = pgTable(
@@ -90,3 +92,39 @@ export const messages = pgTable("messages", {
 export type Chat = typeof chats.$inferSelect;
 export type ChatParticipant = typeof chatParticipants.$inferSelect;
 export type Message = typeof messages.$inferSelect;
+
+// Sharing & Notifications
+export const documentCollaborators = pgTable(
+  "document_collaborators",
+  {
+    documentId: uuid("document_id")
+      .references(() => documents.id, { onDelete: "cascade" })
+      .notNull(),
+    userId: uuid("user_id")
+      .references(() => profiles.id, { onDelete: "cascade" })
+      .notNull(),
+    addedAt: timestamp("added_at").defaultNow().notNull(),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.documentId, t.userId] }),
+  }),
+);
+
+export const notificationTypeEnum = pgEnum("notification_type", ["invite", "limit"]);
+
+export const notifications = pgTable("notifications", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  recipientId: uuid("recipient_id")
+    .references(() => profiles.id, { onDelete: "cascade" })
+    .notNull(),
+  senderId: uuid("sender_id")
+    .references(() => profiles.id, { onDelete: "cascade" })
+    .notNull(),
+  type: notificationTypeEnum("type").notNull(),
+  data: jsonb("data"), // Stores documentId, etc.
+  isRead: boolean("is_read").default(false).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type DocumentCollaborator = typeof documentCollaborators.$inferSelect;
+export type Notification = typeof notifications.$inferSelect;

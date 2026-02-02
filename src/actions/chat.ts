@@ -2,13 +2,122 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { db } from "@/db";
-import { chats, chatParticipants, messages, profiles } from "@/db/schema";
+import {
+  chats,
+  chatParticipants,
+  messages,
+  profiles,
+  documentCollaborators,
+  documents,
+} from "@/db/schema";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { eq, and, desc, inArray, ne } from "drizzle-orm";
 import { randomUUID } from "crypto";
 
 // --- Chat Actions ---
+
+// Create a chat specifically for a document
+export async function createDocumentChat(documentId: string, participantIds: string[]) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) redirect("/login");
+
+  const uniqueParticipants = Array.from(new Set([...participantIds, user.id]));
+
+  try {
+    // 1. Check if chat already exists for this document
+    const existingChat = await db.query.chats.findFirst({
+      where: eq(chats.documentId, documentId),
+    });
+
+    if (existingChat) {
+      // Ensure current user is participant if not already
+      await addChatParticipant(existingChat.id, user.id);
+      return { success: true, chatId: existingChat.id };
+    }
+
+    // 2. Fetch all document collaborators + owner to be initial participants
+    const collaborators = await db
+      .select({ userId: documentCollaborators.userId })
+      .from(documentCollaborators)
+      .where(eq(documentCollaborators.documentId, documentId));
+
+    const doc = await db.query.documents.findFirst({
+      where: eq(documents.id, documentId),
+      columns: { ownerId: true },
+    });
+
+    const allUserIds = new Set([
+      user.id,
+      ...(doc ? [doc.ownerId] : []),
+      ...collaborators.map((c) => c.userId),
+      ...participantIds,
+    ]);
+
+    const uniqueParticipantsFinal = Array.from(allUserIds);
+
+    // 3. Create new chat linked to document
+    const [newChat] = await db
+      .insert(chats)
+      .values({
+        type: "group",
+        name: "Document Chat",
+        documentId: documentId,
+      })
+      .returning({ id: chats.id });
+
+    // 4. Add participants
+    if (uniqueParticipantsFinal.length > 0) {
+      await db.insert(chatParticipants).values(
+        uniqueParticipantsFinal.map((uid) => ({
+          chatId: newChat.id,
+          userId: uid,
+        })),
+      );
+    }
+
+    revalidatePath("/dashboard");
+    return { success: true, chatId: newChat.id };
+  } catch (error) {
+    console.error("Create doc chat error:", error);
+    return { error: "Failed to create document chat" };
+  }
+}
+
+export async function addChatParticipant(chatId: string, userId: string) {
+  const existing = await db.query.chatParticipants.findFirst({
+    where: and(eq(chatParticipants.chatId, chatId), eq(chatParticipants.userId, userId)),
+  });
+
+  if (!existing) {
+    await db.insert(chatParticipants).values({
+      chatId,
+      userId,
+    });
+    revalidatePath(`/dashboard/messages/${chatId}`);
+  }
+}
+
+export async function getChatForDocument(documentId: string) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  const chat = await db.query.chats.findFirst({
+    where: eq(chats.documentId, documentId),
+    with: {
+      participants: true, // Assuming relation exists or we fetch separately
+    },
+  });
+
+  return chat;
+}
 
 export async function createChat(participantIds: string[]) {
   const supabase = await createClient();
@@ -54,22 +163,43 @@ export async function getChats() {
 
   if (!user) redirect("/login");
 
-  // Fetch chats where user is a participant
-  // This is a bit complex in SQL/Drizzle without easier relations setup, but let's do a join
-  // Select chats joined by current user
+  // Fetch chats where user is a participant, including document info
   const userChats = await db
     .select({
       id: chats.id,
       type: chats.type,
       name: chats.name,
       updatedAt: chats.updatedAt,
+      documentId: chats.documentId,
+      documentName: documents.name,
     })
     .from(chats)
     .innerJoin(chatParticipants, eq(chats.id, chatParticipants.chatId))
+    .leftJoin(documents, eq(chats.documentId, documents.id))
     .where(eq(chatParticipants.userId, user.id))
     .orderBy(desc(chats.updatedAt));
 
-  return userChats;
+  // For each chat, fetch the last message
+  const chatsWithLastMessage = await Promise.all(
+    userChats.map(async (chat) => {
+      const [lastMsg] = await db
+        .select({
+          content: messages.content,
+          createdAt: messages.createdAt,
+        })
+        .from(messages)
+        .where(eq(messages.chatId, chat.id))
+        .orderBy(desc(messages.createdAt))
+        .limit(1);
+
+      return {
+        ...chat,
+        lastMessage: lastMsg || null,
+      };
+    }),
+  );
+
+  return chatsWithLastMessage;
 }
 
 export async function getChatDetails(chatId: string) {

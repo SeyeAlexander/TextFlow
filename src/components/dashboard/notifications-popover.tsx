@@ -1,40 +1,9 @@
-"use client";
-
 import { motion } from "framer-motion";
 import { Bell, Check, Inbox, MessageSquare, FileText, X } from "lucide-react";
 import { useState } from "react";
-import { formatRelativeTime } from "@/data/dummy-data";
-
-// Dummy notification data
-const DUMMY_NOTIFICATIONS = [
-  {
-    id: "1",
-    type: "mention",
-    user: { name: "Sarah Chen", avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Sarah" },
-    content: "mentioned you in",
-    target: "Project Roadmap",
-    time: new Date(Date.now() - 1000 * 60 * 5), // 5 mins ago
-    read: false,
-  },
-  {
-    id: "2",
-    type: "comment",
-    user: { name: "Mike Ross", avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Mike" },
-    content: "commented on",
-    target: "Q4 Financials",
-    time: new Date(Date.now() - 1000 * 60 * 60 * 2), // 2 hours ago
-    read: false,
-  },
-  {
-    id: "3",
-    type: "share",
-    user: { name: "Alex Kim", avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Alex" },
-    content: "shared a document",
-    target: "Design System",
-    time: new Date(Date.now() - 1000 * 60 * 60 * 24), // 1 day ago
-    read: true,
-  },
-];
+import { formatRelativeTime } from "@/lib/utils";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { getNotifications, markAsRead, markAllAsRead } from "@/actions/notifications";
 
 interface NotificationsPopoverProps {
   isOpen: boolean;
@@ -42,14 +11,45 @@ interface NotificationsPopoverProps {
 }
 
 export function NotificationsPopover({ isOpen, onClose }: NotificationsPopoverProps) {
-  const [notifications, setNotifications] = useState(DUMMY_NOTIFICATIONS);
+  const queryClient = useQueryClient();
+
+  const { data: notifications = [] } = useQuery({
+    queryKey: ["notifications"],
+    queryFn: async () => {
+      const data = await getNotifications();
+      return data.map((n) => ({
+        id: n.id,
+        type: n.type,
+        user: { name: n.senderName || "Unknown", avatar: n.senderAvatar || "" },
+        content: n.type === "invite" ? "shared a document" : "interacted with",
+        target: (n.data as any)?.documentName || "a document",
+        time: n.createdAt,
+        read: n.isRead,
+      }));
+    },
+    enabled: isOpen,
+  });
+
+  const markReadMutation = useMutation({
+    mutationFn: markAsRead,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
+    },
+  });
+
+  const markAllReadMutation = useMutation({
+    mutationFn: markAllAsRead,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
+    },
+  });
 
   const markAllRead = () => {
-    setNotifications(notifications.map((n) => ({ ...n, read: true })));
+    markAllReadMutation.mutate();
   };
 
   const markRead = (id: string) => {
-    setNotifications(notifications.map((n) => (n.id === id ? { ...n, read: true } : n)));
+    markReadMutation.mutate(id);
   };
 
   if (!isOpen) return null;
@@ -125,11 +125,11 @@ export function NotificationsPopover({ isOpen, onClose }: NotificationsPopoverPr
                       <span className='font-medium text-blue-500'>{notification.target}</span>
                     </p>
                     <div className='flex items-center gap-1 mt-1'>
-                      {notification.type === "mention" && (
-                        <MessageSquare className='size-3 text-neutral-400' />
-                      )}
-                      {notification.type === "share" && (
+                      {notification.type === "invite" && (
                         <FileText className='size-3 text-neutral-400' />
+                      )}
+                      {notification.type === "limit" && (
+                        <Bell className='size-3 text-neutral-400' />
                       )}
                       <span className='text-[10px] text-neutral-400'>
                         {formatRelativeTime(notification.time)}
