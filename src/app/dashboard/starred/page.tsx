@@ -5,6 +5,8 @@ import { FileCard } from "@/components/dashboard/file-components";
 import { useTextFlowStore } from "@/store/store";
 import { motion } from "framer-motion";
 import { Star } from "lucide-react";
+import { EmptyState } from "@/components/dashboard/empty-state";
+import { DocumentIcon } from "@/components/icons/document-icon";
 
 export default function StarredPage() {
   const { getStarredFiles, setView } = useTextFlowStore();
@@ -37,19 +39,13 @@ export default function StarredPage() {
 
         {/* Files Grid */}
         {starredFiles.length === 0 ? (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className='flex flex-col items-center justify-center py-16 text-center'
-          >
-            <div className='mb-4 flex size-14 items-center justify-center rounded-xl bg-black/5 dark:bg-white/5'>
-              <Star className='size-6 text-muted-foreground' />
-            </div>
-            <h3 className='mb-1 text-sm font-medium'>No starred files</h3>
-            <p className='text-xs text-muted-foreground'>
-              Star important documents for quick access
-            </p>
-          </motion.div>
+          <EmptyState
+            customIcon={
+              <DocumentIcon size={100} className='transition-transform hover:scale-105' />
+            }
+            title='No starred files'
+            description='Star important documents for quick access here.'
+          />
         ) : (
           <motion.div
             initial={{ opacity: 0 }}

@@ -3,8 +3,11 @@
 import { useEffect } from "react";
 import AI_Prompt from "@/components/kokonutui/ai-prompt";
 import { FileList, FolderCard } from "@/components/dashboard/file-components";
+import { EmptyState } from "@/components/dashboard/empty-state";
 import { useTextFlowStore } from "@/store/store";
 import { motion } from "framer-motion";
+import { MetallicFolder } from "@/components/icons/metallic-folder";
+import { DocumentIcon } from "@/components/icons/document-icon";
 
 export default function DashboardPage() {
   const { files, getFoldersByParent, getFilesByFolder, setView } = useTextFlowStore();
@@ -35,7 +38,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Folders Grid */}
-        {topLevelFolders.length > 0 && (
+        {topLevelFolders.length > 0 ? (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -54,13 +57,45 @@ export default function DashboardPage() {
               ))}
             </div>
           </motion.div>
+        ) : (
+          <EmptyState
+            customIcon={
+              <MetallicFolder size={140} className='transition-transform hover:scale-105' />
+            }
+            title='No folders yet'
+            description='Create your first folder to get started.'
+            actionLabel='New Folder'
+            onAction={() => {
+              /* Action handled by sidebar usually, but we could trigger store action here */
+              // For now we just direct them to the button
+              const btn = document.querySelector('button[aria-label="New Folder"]');
+              if (btn && btn instanceof HTMLElement) btn.click();
+            }}
+          />
         )}
 
         {/* Files List */}
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}>
-          <h2 className='mb-3 text-xs font-medium text-muted-foreground'>Files</h2>
-          <FileList files={files} />
-        </motion.div>
+        {files.length > 0 ? (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}>
+            <h2 className='mb-3 text-xs font-medium text-muted-foreground'>Files</h2>
+            <FileList files={files} />
+          </motion.div>
+        ) : (
+          <EmptyState
+            customIcon={
+              <DocumentIcon size={100} className='transition-transform hover:scale-105' />
+            }
+            title='No files yet'
+            description='Create your first file to get started.'
+            actionLabel='New File'
+            onAction={() => {
+              /* Action handled by sidebar usually, but we could trigger store action here */
+              // For now we just direct them to the button
+              const btn = document.querySelector('button[aria-label="New Document"]');
+              if (btn && btn instanceof HTMLElement) btn.click();
+            }}
+          />
+        )}
       </div>
     </main>
   );

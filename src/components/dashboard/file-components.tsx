@@ -312,17 +312,6 @@ export function FolderCard({
           <p className='text-[11px] text-muted-foreground'>{fileCount} files</p>
         </div>
       </Link>
-      {/* <Link
-        href={`/dashboard/folder/${folder.id}`}
-        className='group block rounded-xl border border-black/5 bg-white p-4 transition-shadow hover:shadow-md dark:border-white/5 dark:bg-[#1a1a1a]'
-      >
-        <div className='mb-3 flex size-10 items-center justify-center rounded-lg bg-blue-500/10'>
-          <FolderOpen className='size-5 text-blue-500' />
-        </div>
-
-        <h3 className='mb-1 truncate text-sm font-medium'>{folder.name}</h3>
-        <p className='text-[11px] text-muted-foreground'>{fileCount} files</p>
-      </Link> */}
     </motion.div>
   );
 }

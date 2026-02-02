@@ -26,6 +26,9 @@ importers:
       '@lexical/history':
         specifier: ^0.39.0
         version: 0.39.0
+      '@lexical/html':
+        specifier: ^0.39.0
+        version: 0.39.0
       '@lexical/link':
         specifier: ^0.39.0
         version: 0.39.0
@@ -42,6 +45,9 @@ importers:
         specifier: ^0.39.0
         version: 0.39.0
       '@lexical/selection':
+        specifier: ^0.39.0
+        version: 0.39.0
+      '@lexical/table':
         specifier: ^0.39.0
         version: 0.39.0
       '@lexical/utils':

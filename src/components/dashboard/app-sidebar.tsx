@@ -36,6 +36,11 @@ import { CogIcon, type CogIconHandle } from "@/components/animatedicons/cog";
 import { ClockIcon, type ClockIconHandle } from "@/components/animatedicons/clock";
 import { SparklesIcon, type SparklesIconHandle } from "@/components/animatedicons/sparkles";
 import { UsersIcon, type UsersIconHandle } from "@/components/animatedicons/users";
+import {
+  MessageSquareMoreIcon,
+  type MessageSquareMoreIconHandle,
+} from "@/components/animatedicons/message-square-more";
+import { MailCheckIcon, type MailCheckIconHandle } from "@/components/animatedicons/mail-check";
 
 // Unified button styling constants
 const BUTTON_STYLE = "flex items-center gap-2 rounded-md px-2 py-1.5 text-[13px] transition-colors";
@@ -47,12 +52,29 @@ function AddFolderPopover({ isOpen, onClose }: { isOpen: boolean; onClose: () =>
   const { addFolder } = useTextFlowStore();
   const [name, setName] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (isOpen && inputRef.current) {
       inputRef.current.focus();
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (popoverRef.current && !popoverRef.current.contains(event.target as Node)) {
+        onClose();
+      }
+    }
+
+    if (isOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isOpen, onClose]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,41 +88,39 @@ function AddFolderPopover({ isOpen, onClose }: { isOpen: boolean; onClose: () =>
   if (!isOpen) return null;
 
   return (
-    <>
-      <div className='fixed inset-0 z-40' onClick={onClose} />
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95, y: -5 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.95, y: -5 }}
-        className='absolute left-0 top-full z-50 mt-1 w-48 rounded-lg border border-black/10 bg-white p-2 shadow-lg dark:border-white/10 dark:bg-[#1a1a1a]'
-      >
-        <form onSubmit={handleSubmit}>
-          <input
-            ref={inputRef}
-            type='text'
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder='Folder name...'
-            className='w-full rounded-md bg-black/5 px-2.5 py-1.5 text-[13px] outline-none dark:bg-white/5'
-          />
-          <div className='mt-2 flex gap-1.5'>
-            <button
-              type='button'
-              onClick={onClose}
-              className='flex-1 rounded-md px-2 py-1.5 text-[11px] text-muted-foreground hover:bg-black/5 dark:hover:bg-white/5'
-            >
-              Cancel
-            </button>
-            <button
-              type='submit'
-              className='flex-1 rounded-md bg-black/10 px-2 py-1.5 text-[11px] font-medium dark:bg-white/10'
-            >
-              Create
-            </button>
-          </div>
-        </form>
-      </motion.div>
-    </>
+    <motion.div
+      ref={popoverRef}
+      initial={{ opacity: 0, scale: 0.95, y: -5 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.95, y: -5 }}
+      className='absolute left-0 top-full z-50 mt-1 w-48 rounded-lg border border-black/10 bg-white p-2 shadow-lg dark:border-white/10 dark:bg-[#1a1a1a]'
+    >
+      <form onSubmit={handleSubmit}>
+        <input
+          ref={inputRef}
+          type='text'
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder='Folder name...'
+          className='w-full rounded-md bg-black/5 px-2.5 py-1.5 text-[13px] outline-none dark:bg-white/5'
+        />
+        <div className='mt-2 flex gap-1.5'>
+          <button
+            type='button'
+            onClick={onClose}
+            className='flex-1 rounded-md px-2 py-1.5 text-[11px] text-muted-foreground hover:bg-black/5 dark:hover:bg-white/5'
+          >
+            Cancel
+          </button>
+          <button
+            type='submit'
+            className='flex-1 rounded-md bg-black/10 px-2 py-1.5 text-[11px] font-medium dark:bg-white/10'
+          >
+            Create
+          </button>
+        </div>
+      </form>
+    </motion.div>
   );
 }
 
@@ -521,6 +541,40 @@ function FoldersSection() {
 }
 
 // Discussions Section - Shows documents with active chats
+// Discussion Item with its own ref for animation
+function DiscussionItem({
+  doc,
+  onClick,
+  getUserById,
+}: {
+  doc: any;
+  onClick: () => void;
+  getUserById: (id: string) => any;
+}) {
+  const iconRef = useRef<MessageSquareMoreIconHandle>(null);
+  const lastUser = doc.lastMessage ? getUserById(doc.lastMessage.userId) : null;
+
+  return (
+    <button
+      onClick={onClick}
+      onMouseEnter={() => iconRef.current?.startAnimation()}
+      onMouseLeave={() => iconRef.current?.stopAnimation()}
+      className={`${BUTTON_STYLE} ${BUTTON_HOVER} w-full group`}
+    >
+      <MessageSquareMoreIcon ref={iconRef} size={16} className='shrink-0 text-orange-500' />
+      <div className='flex-1 min-w-0 text-left'>
+        <div className='truncate text-[13px]'>{doc.documentName}</div>
+        {doc.lastMessage && lastUser && (
+          <div className='truncate text-[10px] text-muted-foreground'>
+            {lastUser.name.split(" ")[0]}: {doc.lastMessage.content.slice(0, 25)}...
+          </div>
+        )}
+      </div>
+    </button>
+  );
+}
+
+// Discussions Section - Shows documents with active chats
 function DiscussionsSection() {
   const getDocumentsWithChats = useTextFlowStore((s) => s.getDocumentsWithChats);
   const setChatOpen = useTextFlowStore((s) => s.setChatOpen);
@@ -528,6 +582,13 @@ function DiscussionsSection() {
   const getUserById = useTextFlowStore((s) => s.getUserById);
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(true);
+
+  // Hydration fix: only render content after mount
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   const documentsWithChats = getDocumentsWithChats();
   const displayDocs = documentsWithChats.slice(0, 5);
@@ -538,8 +599,12 @@ function DiscussionsSection() {
     router.push(`/dashboard/document/${documentId}`);
   };
 
+  if (!isMounted) {
+    return null; // Don't render anything on server/initial render to avoid hydration mismatch
+  }
+
   if (documentsWithChats.length === 0) {
-    return null; // Don't show section if no discussions
+    return null;
   }
 
   return (
@@ -563,26 +628,14 @@ function DiscussionsSection() {
             exit={{ height: 0, opacity: 0 }}
             className='space-y-0.5 overflow-hidden'
           >
-            {displayDocs.map((doc) => {
-              const lastUser = doc.lastMessage ? getUserById(doc.lastMessage.userId) : null;
-              return (
-                <button
-                  key={doc.documentId}
-                  onClick={() => handleOpenChat(doc.documentId)}
-                  className={`${BUTTON_STYLE} ${BUTTON_HOVER} w-full group`}
-                >
-                  <MessageCircle className='size-4 text-orange-500' />
-                  <div className='flex-1 min-w-0 text-left'>
-                    <div className='truncate text-[13px]'>{doc.documentName}</div>
-                    {doc.lastMessage && lastUser && (
-                      <div className='truncate text-[10px] text-muted-foreground'>
-                        {lastUser.name.split(" ")[0]}: {doc.lastMessage.content.slice(0, 25)}...
-                      </div>
-                    )}
-                  </div>
-                </button>
-              );
-            })}
+            {displayDocs.map((doc) => (
+              <DiscussionItem
+                key={doc.documentId}
+                doc={doc}
+                onClick={() => handleOpenChat(doc.documentId)}
+                getUserById={getUserById}
+              />
+            ))}
           </motion.div>
         )}
       </AnimatePresence>
@@ -840,7 +893,7 @@ function ExpandedSidebar({
           badge={sharedCount}
         />
         <div className='relative'>
-          <SidebarItem icon={Inbox} label='Inbox' active={inboxOpen} onClick={onInbox} badge={3} />
+          <InboxSidebarItem label='Inbox' active={inboxOpen} onClick={onInbox} badge={3} />
           {/* Notifications Popover */}
           {/* Rendered via portal/fixed positioning in component, but kept here for React tree location */}
           <NotificationsPopover isOpen={inboxOpen} onClose={onCloseInbox} />
@@ -857,7 +910,7 @@ function ExpandedSidebar({
         </div>
 
         {/* Folders Section */}
-        <div className='pt-4 pb-4'>
+        <div className='pt-4 pb-24'>
           <FoldersSection />
         </div>
       </nav>
@@ -884,6 +937,25 @@ function SidebarItem({ icon: Icon, label, active, onClick, badge }: any) {
       }`}
     >
       <Icon className='size-3.5 text-muted-foreground' />
+      <span className='flex-1 text-left'>{label}</span>
+      {badge && <span className='text-[11px] text-muted-foreground'>{badge}</span>}
+    </button>
+  );
+}
+
+// Separate component for Inbox to handle animation ref
+function InboxSidebarItem({ label, active, onClick, badge }: any) {
+  const iconRef = useRef<MailCheckIconHandle>(null);
+  return (
+    <button
+      onClick={onClick}
+      onMouseEnter={() => iconRef.current?.startAnimation()}
+      onMouseLeave={() => iconRef.current?.stopAnimation()}
+      className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-[13px] transition-colors ${
+        active ? "bg-black/10 dark:bg-white/10" : "hover:bg-black/5 dark:hover:bg-white/5"
+      }`}
+    >
+      <MailCheckIcon ref={iconRef} size={14} className='shrink-0 text-muted-foreground' />
       <span className='flex-1 text-left'>{label}</span>
       {badge && <span className='text-[11px] text-muted-foreground'>{badge}</span>}
     </button>

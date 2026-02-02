@@ -7,6 +7,9 @@ import { useTextFlowStore } from "@/store/store";
 import { motion } from "framer-motion";
 import { FolderOpen, ChevronRight } from "lucide-react";
 import Link from "next/link";
+import { EmptyState } from "@/components/dashboard/empty-state";
+import { ErrorState } from "@/components/dashboard/error-state";
+import { DocumentIcon } from "@/components/icons/document-icon";
 
 export default function FolderPage() {
   const params = useParams();
@@ -31,13 +34,12 @@ export default function FolderPage() {
 
   if (!folder) {
     return (
-      <main className='my-3 mr-3 flex flex-1 items-center justify-center rounded-2xl bg-white dark:bg-black'>
-        <div className='text-center'>
-          <h1 className='text-lg font-medium'>Folder not found</h1>
-          <Link href='/dashboard' className='mt-2 text-sm text-blue-500 hover:underline'>
-            Go back to files
-          </Link>
-        </div>
+      <main className='my-3 mr-3 flex flex-1 items-center justify-center rounded-2xl bg-white dark:bg-[#0A0A0A]'>
+        <ErrorState
+          title='Folder not found'
+          description='The folder you are looking for does not exist or has been deleted.'
+          className='border-none bg-transparent'
+        />
       </main>
     );
   }
@@ -87,17 +89,18 @@ export default function FolderPage() {
 
         {/* Files Grid */}
         {files.length === 0 ? (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className='flex flex-col items-center justify-center py-16 text-center'
-          >
-            <div className='mb-4 flex size-14 items-center justify-center rounded-xl bg-black/5 dark:bg-white/5'>
-              <FolderOpen className='size-6 text-muted-foreground' />
-            </div>
-            <h3 className='mb-1 text-sm font-medium'>Empty folder</h3>
-            <p className='text-xs text-muted-foreground'>Add files to this folder</p>
-          </motion.div>
+          <EmptyState
+            customIcon={
+              <DocumentIcon size={100} className='transition-transform hover:scale-105' />
+            }
+            title='Empty folder'
+            description='Add files to this folder to organize your documents.'
+            actionLabel='New Document'
+            onAction={() => {
+              const btn = document.querySelector('button[aria-label="New Document"]');
+              if (btn && btn instanceof HTMLElement) btn.click();
+            }}
+          />
         ) : (
           <motion.div
             initial={{ opacity: 0 }}

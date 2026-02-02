@@ -5,6 +5,8 @@ import { FileCard } from "@/components/dashboard/file-components";
 import { useTextFlowStore } from "@/store/store";
 import { motion } from "framer-motion";
 import { Clock } from "lucide-react";
+import { EmptyState } from "@/components/dashboard/empty-state";
+import { DocumentIcon } from "@/components/icons/document-icon";
 
 export default function RecentPage() {
   const { getRecentFiles, setView } = useTextFlowStore();
@@ -37,19 +39,18 @@ export default function RecentPage() {
 
         {/* Files Grid */}
         {recentFiles.length === 0 ? (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className='flex flex-col items-center justify-center py-16 text-center'
-          >
-            <div className='mb-4 flex size-14 items-center justify-center rounded-xl bg-black/5 dark:bg-white/5'>
-              <Clock className='size-6 text-muted-foreground' />
-            </div>
-            <h3 className='mb-1 text-sm font-medium'>No recent files</h3>
-            <p className='text-xs text-muted-foreground'>
-              Start working on documents to see them here
-            </p>
-          </motion.div>
+          <EmptyState
+            customIcon={
+              <DocumentIcon size={100} className='transition-transform hover:scale-105' />
+            }
+            title='No recent files'
+            description='Start working on documents to see them appear here.'
+            actionLabel='New Document'
+            onAction={() => {
+              const btn = document.querySelector('button[aria-label="New Document"]');
+              if (btn && btn instanceof HTMLElement) btn.click();
+            }}
+          />
         ) : (
           <motion.div
             initial={{ opacity: 0 }}

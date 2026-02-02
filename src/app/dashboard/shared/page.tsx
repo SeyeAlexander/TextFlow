@@ -5,6 +5,8 @@ import { FileCard } from "@/components/dashboard/file-components";
 import { useTextFlowStore } from "@/store/store";
 import { motion } from "framer-motion";
 import { Users } from "lucide-react";
+import { EmptyState } from "@/components/dashboard/empty-state";
+import { DocumentIcon } from "@/components/icons/document-icon";
 
 export default function SharedPage() {
   const { getSharedFiles, setView } = useTextFlowStore();
@@ -37,19 +39,14 @@ export default function SharedPage() {
 
         {/* Files Grid */}
         {sharedFiles.length === 0 ? (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className='flex flex-col items-center justify-center py-16 text-center'
-          >
-            <div className='mb-4 flex size-14 items-center justify-center rounded-xl bg-black/5 dark:bg-white/5'>
-              <Users className='size-6 text-muted-foreground' />
-            </div>
-            <h3 className='mb-1 text-sm font-medium'>No shared files</h3>
-            <p className='text-xs text-muted-foreground'>
-              Share documents to collaborate with others
-            </p>
-          </motion.div>
+          <EmptyState
+            customIcon={
+              <DocumentIcon size={100} className='transition-transform hover:scale-105' />
+            }
+            title='No shared files'
+            description='Share documents to collaborate with others.'
+            // No action button for shared as you don't "create" a shared file directly usually, but we could add "Invite" later
+          />
         ) : (
           <motion.div
             initial={{ opacity: 0 }}

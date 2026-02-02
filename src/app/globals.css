@@ -233,3 +233,164 @@
 .font-korium {
   font-family: "T1 Korium", var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
 }
+
+/* Lexical Editor Styles */
+.editor-placeholder {
+  color: var(--muted-foreground);
+  overflow: hidden;
+  position: absolute;
+  text-overflow: ellipsis;
+  top: 15px;
+  left: 10px;
+  font-size: 15px;
+  user-select: none;
+  pointer-events: none;
+}
+
+.editor-paragraph {
+  margin: 0 0 8px 0;
+  position: relative;
+}
+
+.editor-heading-h1 {
+  font-size: 1.875rem;
+  line-height: 2.25rem;
+  font-weight: 700;
+  margin-top: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.editor-heading-h2 {
+  font-size: 1.5rem;
+  line-height: 2rem;
+  font-weight: 600;
+  margin-top: 1.25rem;
+  margin-bottom: 0.75rem;
+}
+
+.editor-heading-h3 {
+  font-size: 1.25rem;
+  line-height: 1.75rem;
+  font-weight: 600;
+  margin-top: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.editor-quote {
+  font-style: italic;
+  color: var(--muted-foreground);
+  border-left-width: 4px;
+  border-left-color: var(--border);
+  padding-left: 1rem;
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+}
+
+.editor-list-ul {
+  list-style-type: disc !important;
+  padding-left: 1.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.editor-list-ol {
+  list-style-type: decimal !important;
+  padding-left: 1.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.editor-listitem {
+  margin-bottom: 0.25rem;
+}
+
+.editor-nested-listitem {
+  list-style-type: none;
+}
+
+.editor-text-bold {
+  font-weight: 700;
+}
+
+.editor-text-italic {
+  font-style: italic;
+}
+
+.editor-text-underline {
+  text-decoration: underline !important;
+}
+
+.editor-text-strikethrough {
+  text-decoration: line-through !important;
+}
+
+.editor-text-underlineStrikethrough {
+  text-decoration: underline line-through !important;
+}
+
+.editor-text-code {
+  background-color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.875em;
+  padding: 0.125rem 0.25rem;
+  border-radius: 0.25rem;
+}
+
+.editor-code {
+  background-color: #1a1a1a;
+  color: #f8f8f2;
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  line-height: 1.5;
+  padding: 1rem;
+  border-radius: 0.5rem;
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+  overflow-x: auto;
+  display: block;
+  tab-size: 2;
+  position: relative;
+}
+
+/* Syntax Highlighting Tokens (One Dark inspired) */
+.editor-tokenComment {
+  color: #6272a4;
+  font-style: italic;
+}
+.editor-tokenPunctuation {
+  color: #f8f8f2;
+}
+.editor-tokenProperty {
+  color: #bd93f9;
+}
+.editor-tokenSelector {
+  color: #ff79c6;
+}
+.editor-tokenOperator {
+  color: #f8f8f2;
+}
+.editor-tokenAttr {
+  color: #50fa7b;
+}
+.editor-tokenVariable {
+  color: #f8f8f2;
+}
+.editor-tokenFunction {
+  color: #8be9fd;
+}
+.editor-keyword {
+  color: #ff79c6;
+  font-weight: bold;
+}
+.editor-string {
+  color: #f1fa8c;
+}
+
+/* Dark mode adjustment for code block if needed, but #1a1a1a works well for both */
+.dark .editor-code {
+  background-color: #111;
+  border: 1px solid var(--border);
+}
+
+.editor-link {
+  color: var(--primary);
+  text-decoration: underline;
+}
