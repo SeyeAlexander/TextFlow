@@ -32,6 +32,7 @@ import { InboxPopover } from "./inbox-popover";
 import { useUser } from "@/hooks/use-user";
 import { getNotifications } from "@/actions/notifications";
 import { getChats } from "@/actions/chat";
+import { toast } from "sonner";
 // Animated icons
 import {
   FolderKanbanIcon,
@@ -779,6 +780,7 @@ function CollapsedSidebar({
   onInbox,
   inboxOpen,
   onCloseInbox,
+  onNewDocument,
 }: any) {
   const iconButtonClass = (isActive: boolean) =>
     `flex h-10 w-10 items-center justify-center rounded-lg transition-colors ${isActive ? "bg-black/10 dark:bg-white/10" : "hover:bg-black/5 dark:hover:bg-white/5"}`;
@@ -808,7 +810,11 @@ function CollapsedSidebar({
       </button>
 
       <div className='flex flex-col gap-2'>
-        <button onClick={onSearch} className={iconButtonClass(false)}>
+        <button onClick={onNewDocument} className={iconButtonClass(false)} title='New Document'>
+          <Plus className='size-4 text-muted-foreground' />
+        </button>
+
+        <button onClick={onSearch} className={iconButtonClass(false)} title='Search (⌘K)'>
           <Search className='size-4 text-muted-foreground' />
         </button>
 
@@ -908,6 +914,8 @@ function ExpandedSidebar({
   inboxOpen,
   onCloseInbox,
   files,
+  onNewDocument,
+  isCreating,
 }: any) {
   const { user } = useUser();
   const { data: notifications = [] } = useQuery({
@@ -919,20 +927,36 @@ function ExpandedSidebar({
   const unreadCount = notifications.filter((n: any) => !n.read).length;
 
   return (
-    <div className='flex h-full w-64 flex-col border-r border-black/5 bg-white dark:border-white/5 dark:bg-[#0A0A0A]'>
+    <div className='flex h-full w-64 flex-col bg-[#F5F5F5] dark:border-white/5 dark:bg-[#0A0A0A]'>
       <div className='flex items-center gap-3 p-4'>
         <DotLogo size='sm' />
         <span className='text-[15px] font-semibold tracking-tight'>TextFlow</span>
       </div>
 
       <div className='flex-1 overflow-y-auto px-3 py-2 scrollbar-none'>
-        <div className='mb-4 space-y-0.5'>
+        <div className='mb-4 space-y-2'>
           <button
             onClick={onSearch}
-            className={`${BUTTON_STYLE} ${BUTTON_HOVER} w-full text-muted-foreground`}
+            className={`${BUTTON_STYLE} w-full bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10`}
           >
-            <Search className='size-3.5' />
-            Search...
+            <Search className='size-3.5 text-muted-foreground' />
+            <span className='flex-1 text-left text-muted-foreground'>Search...</span>
+            <kbd className='rounded bg-black/10 px-1 py-0.5 text-[9px] font-mono dark:bg-white/10'>
+              ⌘K
+            </kbd>
+          </button>
+
+          <button
+            onClick={onNewDocument}
+            disabled={isCreating}
+            className={`${BUTTON_STYLE} w-full justify-center bg-black/10 font-medium dark:bg-white/10 hover:bg-black/15 dark:hover:bg-white/15 active:scale-95 disabled:opacity-50`}
+          >
+            {isCreating ? (
+              <span className='size-3.5 animate-spin rounded-full border-2 border-primary border-t-transparent' />
+            ) : (
+              <Plus className='size-3.5' />
+            )}
+            <span>New Document</span>
           </button>
 
           <div className='relative'>
@@ -1001,7 +1025,29 @@ export function AppSidebar({ collapsed }: { collapsed: boolean }) {
   const [showFolders, setShowFolders] = useState(true);
   const [showFiles, setShowFiles] = useState(true);
   const [inboxOpen, setInboxOpen] = useState(false);
+  const queryClient = useQueryClient();
   const router = useRouter();
+
+  const createFileMutation = useMutation({
+    mutationFn: async (name: string) => {
+      const formData = new FormData();
+      formData.append("name", name);
+      return await createFile(formData);
+    },
+    onSuccess: (data) => {
+      if (data.success && data.id) {
+        queryClient.invalidateQueries({ queryKey: ["sidebar"] });
+        router.push(`/dashboard/document/${data.id}`);
+        toast.success("Document created");
+      } else {
+        toast.error(data.error || "Failed to create document");
+      }
+    },
+  });
+
+  const handleNewDocument = () => {
+    createFileMutation.mutate("New Document");
+  };
 
   const handleNavigation = (view: string) => {
     setView(view);
@@ -1023,6 +1069,7 @@ export function AppSidebar({ collapsed }: { collapsed: boolean }) {
         onInbox={() => setInboxOpen(true)}
         inboxOpen={inboxOpen}
         onCloseInbox={() => setInboxOpen(false)}
+        onNewDocument={handleNewDocument}
       />
     );
   }
@@ -1042,6 +1089,8 @@ export function AppSidebar({ collapsed }: { collapsed: boolean }) {
       onInbox={() => setInboxOpen(true)}
       inboxOpen={inboxOpen}
       onCloseInbox={() => setInboxOpen(false)}
+      onNewDocument={handleNewDocument}
+      isCreating={createFileMutation.isPending}
     />
   );
 }
