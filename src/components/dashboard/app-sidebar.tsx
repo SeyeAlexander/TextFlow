@@ -21,6 +21,7 @@ import {
   MessageCircle,
   Inbox,
   Bell,
+  Mail,
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { fetchSidebarData, fetchDocumentById, searchDocuments } from "@/actions/data";
@@ -145,7 +146,7 @@ function AddFolderPopover({ isOpen, onClose }: { isOpen: boolean; onClose: () =>
   );
 }
 
-// Add to Folder Submenu - Simplified to avoid legacy store
+// Add to Folder Submenu
 function AddToFolderMenu({
   fileId,
   onClose,
@@ -163,8 +164,6 @@ function AddToFolderMenu({
     const formData = new FormData();
     formData.append("id", fileId);
     formData.append("folderId", folderId);
-    // You'll need a move function in files.ts if not already there,
-    // assuming renameFile or similar can handle folderId updates.
     await renameFile(formData);
     queryClient.invalidateQueries({ queryKey: ["sidebar"] });
     onClose();
@@ -199,7 +198,7 @@ function AddToFolderMenu({
   );
 }
 
-// File Item with animated icon using ref for group hover
+// File Item
 function FileItem({ file }: { file: TextFlowFile }) {
   const pathname = usePathname();
   const [isEditing, setIsEditing] = useState(false);
@@ -428,8 +427,7 @@ function FolderItem({ folder }: { folder: any }) {
 }
 
 // Files Section
-function FilesSection({ files }: { files: TextFlowFile[] }) {
-  const [isOpen, setIsOpen] = useState(true);
+function FilesSection({ files, isOpen }: { files: TextFlowFile[]; isOpen: boolean }) {
   const [showAll, setShowAll] = useState(false);
 
   const sortedFiles = [...files].sort(
@@ -448,17 +446,6 @@ function FilesSection({ files }: { files: TextFlowFile[] }) {
 
   return (
     <div className='relative'>
-      <div className='mb-1 flex items-center justify-between px-2'>
-        <button
-          onClick={() => setIsOpen(!isOpen)}
-          className='flex items-center gap-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground'
-        >
-          {isOpen ? <ChevronDown className='size-3' /> : <ChevronRight className='size-3' />}
-          Files
-        </button>
-        <span className='text-[10px] text-muted-foreground'>{files.length}</span>
-      </div>
-
       <AnimatePresence>
         {isOpen && (
           <motion.div
@@ -491,9 +478,7 @@ function FilesSection({ files }: { files: TextFlowFile[] }) {
 }
 
 // Folders Section
-function FoldersSection({ folders }: { folders: TextFlowFolder[] }) {
-  const [isOpen, setIsOpen] = useState(true);
-  const [popoverOpen, setPopoverOpen] = useState(false);
+function FoldersSection({ folders, isOpen }: { folders: TextFlowFolder[]; isOpen: boolean }) {
   const [showAll, setShowAll] = useState(false);
 
   const topLevelFolders = folders.filter((f) => f.parentId === null);
@@ -503,28 +488,6 @@ function FoldersSection({ folders }: { folders: TextFlowFolder[] }) {
 
   return (
     <div className='relative'>
-      <div className='mb-1 flex items-center justify-between px-2'>
-        <button
-          onClick={() => setIsOpen(!isOpen)}
-          className='flex items-center gap-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground'
-        >
-          {isOpen ? <ChevronDown className='size-3' /> : <ChevronRight className='size-3' />}
-          Folders
-        </button>
-        <button
-          onClick={() => setPopoverOpen(true)}
-          className='rounded p-0.5 transition-colors hover:bg-black/10 dark:hover:bg-white/10'
-        >
-          <Plus className='size-3.5 text-muted-foreground' />
-        </button>
-      </div>
-
-      <AnimatePresence>
-        {popoverOpen && (
-          <AddFolderPopover isOpen={popoverOpen} onClose={() => setPopoverOpen(false)} />
-        )}
-      </AnimatePresence>
-
       <AnimatePresence>
         {isOpen && (
           <motion.div
@@ -581,11 +544,10 @@ function DiscussionItem({ doc, onClick }: { doc: any; onClick: () => void }) {
 }
 
 // Discussions Section
-function DiscussionsSection() {
+function DiscussionsSection({ isOpen }: { isOpen: boolean }) {
   const setChatOpen = useTextFlowStore((s) => s.setChatOpen);
   const setActiveChatDocument = useTextFlowStore((s) => s.setActiveChatDocument);
   const router = useRouter();
-  const [isOpen, setIsOpen] = useState(true);
   const { user } = useUser();
 
   const { data: chats = [] } = useQuery({
@@ -608,17 +570,6 @@ function DiscussionsSection() {
 
   return (
     <div className='relative'>
-      <div className='mb-1 flex items-center justify-between px-2'>
-        <button
-          onClick={() => setIsOpen(!isOpen)}
-          className='flex items-center gap-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground'
-        >
-          {isOpen ? <ChevronDown className='size-3' /> : <ChevronRight className='size-3' />}
-          Discussions
-        </button>
-        <span className='text-[10px] text-muted-foreground'>{chats.length}</span>
-      </div>
-
       <AnimatePresence>
         {isOpen && (
           <motion.div
@@ -708,7 +659,7 @@ function NavLink({
   badge,
 }: {
   href: string;
-  animatedIconType: "book-text" | "sparkles" | "clock" | "users" | "folder";
+  animatedIconType: "book-text" | "sparkles" | "clock" | "users" | "folder" | "mail";
   label: string;
   badge?: number;
 }) {
@@ -749,6 +700,8 @@ function NavLink({
         return <UsersIcon ref={usersRef} size={14} className='text-muted-foreground' />;
       case "folder":
         return <FolderKanbanIcon ref={folderRef} size={14} className='text-muted-foreground' />;
+      case "mail":
+        return <Mail className='size-3.5 text-muted-foreground' />;
       default:
         return null;
     }
@@ -902,11 +855,6 @@ function CollapsedSidebar({
 // Expanded Sidebar
 function ExpandedSidebar({
   currentView,
-  folders,
-  showFolders,
-  onToggleFolders,
-  showFiles,
-  onToggleFiles,
   onNavigate,
   onSearch,
   onSettings,
@@ -916,6 +864,14 @@ function ExpandedSidebar({
   files,
   onNewDocument,
   isCreating,
+  sidebarData,
+  showFolders,
+  onToggleFolders,
+  showFiles,
+  onToggleFiles,
+  showDiscussions,
+  onToggleDiscussions,
+  onOpenNewFolderPopover,
 }: any) {
   const { user } = useUser();
   const { data: notifications = [] } = useQuery({
@@ -927,10 +883,12 @@ function ExpandedSidebar({
   const unreadCount = notifications.filter((n: any) => !n.read).length;
 
   return (
-    <div className='flex h-full w-64 flex-col bg-[#F5F5F5] dark:border-white/5 dark:bg-[#0A0A0A]'>
-      <div className='flex items-center gap-3 p-4'>
-        <DotLogo size='sm' />
-        <span className='text-[15px] font-semibold tracking-tight'>TextFlow</span>
+    <aside className='flex h-full w-64 flex-col bg-[#F5F5F5] transition-all duration-300 dark:border-white/5 dark:bg-[#0A0A0A]'>
+      <div className='flex items-center justify-between p-4 pb-6'>
+        <span className='text-lg font-bold tracking-[0.2em] opacity-40 font-mono'>TEXTFLOW</span>
+        <span className='rounded bg-black/5 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground dark:bg-white/5'>
+          v1.0
+        </span>
       </div>
 
       <div className='flex-1 overflow-y-auto px-3 py-2 scrollbar-none'>
@@ -958,15 +916,34 @@ function ExpandedSidebar({
             )}
             <span>New Document</span>
           </button>
+        </div>
 
+        <div className='mb-6 space-y-0.5'>
+          <NavLink href='/dashboard' animatedIconType='book-text' label='All Files' />
+          <NavLink
+            href='/dashboard/starred'
+            animatedIconType='sparkles'
+            label='Starred'
+            badge={files.filter((f: any) => f.starred).length}
+          />
+          <NavLink
+            href='/dashboard/recent'
+            animatedIconType='clock'
+            label='Recent'
+            badge={files.length > 10 ? 10 : files.length}
+          />
+          <NavLink
+            href='/dashboard/shared'
+            animatedIconType='users'
+            label='Shared'
+            badge={files.filter((f: any) => f.shared).length}
+          />
           <div className='relative'>
             <button onClick={onInbox} className={`${BUTTON_STYLE} ${BUTTON_HOVER} w-full`}>
-              <Inbox className='size-3.5 text-muted-foreground' />
+              <Mail className='size-3.5 text-muted-foreground' />
               <span className='flex-1 text-left'>Inbox</span>
               {unreadCount > 0 && (
-                <span className='rounded bg-orange-500/10 px-1.5 py-0.5 text-[10px] font-medium text-orange-600'>
-                  {unreadCount}
-                </span>
+                <span className='text-[11px] text-muted-foreground'>{unreadCount}</span>
               )}
             </button>
             <InboxPopover open={inboxOpen} onOpenChange={onCloseInbox} />
@@ -974,38 +951,65 @@ function ExpandedSidebar({
         </div>
 
         <div className='mb-6'>
-          <div className='px-2 py-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground'>
-            Main
+          <div className='mb-1 flex items-center justify-between px-2'>
+            <button
+              onClick={onToggleFiles}
+              className='text-[11px] font-medium uppercase tracking-widest text-muted-foreground/60 flex items-center gap-1'
+            >
+              {showFiles ? <ChevronDown className='size-3' /> : <ChevronRight className='size-3' />}
+              FILES
+            </button>
+            <span className='text-[10px] text-muted-foreground/40'>{files.length}</span>
           </div>
-          <div className='space-y-0.5'>
-            <NavLink href='/dashboard' animatedIconType='book-text' label='Home' />
-            <NavLink href='/dashboard/starred' animatedIconType='sparkles' label='Starred' />
-            <NavLink href='/dashboard/recent' animatedIconType='clock' label='Recent' />
-            <NavLink href='/dashboard/shared' animatedIconType='users' label='Shared with me' />
-            <NavLink href='/dashboard' animatedIconType='folder' label='All Files' />
+          <FilesSection files={files} isOpen={showFiles} />
+        </div>
+
+        <div className='mb-6'>
+          <div className='mb-1 flex items-center justify-between px-2'>
+            <button
+              onClick={onToggleDiscussions}
+              className='text-[11px] font-medium uppercase tracking-widest text-muted-foreground/60 flex items-center gap-1'
+            >
+              {showDiscussions ? (
+                <ChevronDown className='size-3' />
+              ) : (
+                <ChevronRight className='size-3' />
+              )}
+              DISCUSSIONS
+            </button>
           </div>
+          <DiscussionsSection isOpen={showDiscussions} />
         </div>
 
         <div className='mb-6'>
-          <FoldersSection folders={folders} />
-        </div>
-
-        <div className='mb-6'>
-          <FilesSection files={files} />
-        </div>
-
-        <div className='mb-6'>
-          <DiscussionsSection />
+          <div className='mb-1 flex items-center justify-between px-2'>
+            <button
+              onClick={onToggleFolders}
+              className='text-[11px] font-medium uppercase tracking-widest text-muted-foreground/60 flex items-center gap-1'
+            >
+              {showFolders ? (
+                <ChevronDown className='size-3' />
+              ) : (
+                <ChevronRight className='size-3' />
+              )}
+              FOLDERS
+            </button>
+            <button
+              onClick={onOpenNewFolderPopover}
+              className='rounded p-0.5 transition-colors hover:bg-black/10 dark:hover:bg-white/10'
+            >
+              <Plus className='size-3.5 text-muted-foreground/40' />
+            </button>
+          </div>
+          <FoldersSection folders={sidebarData?.folders || []} isOpen={showFolders} />
         </div>
       </div>
 
-      <div className='border-t border-black/5 p-3 dark:border-white/5'>
-        <div className='mb-3'>
-          <StorageCard />
-        </div>
+      <div className='p-3 space-y-2'>
+        <StorageCard />
         <UserPillButton onSettingsClick={onSettings} />
       </div>
-    </div>
+    </aside>
   );
 }
 
@@ -1024,6 +1028,8 @@ export function AppSidebar({ collapsed }: { collapsed: boolean }) {
 
   const [showFolders, setShowFolders] = useState(true);
   const [showFiles, setShowFiles] = useState(true);
+  const [showDiscussions, setShowDiscussions] = useState(true);
+  const [popoverOpen, setPopoverOpen] = useState(false);
   const [inboxOpen, setInboxOpen] = useState(false);
   const queryClient = useQueryClient();
   const router = useRouter();
@@ -1077,12 +1083,6 @@ export function AppSidebar({ collapsed }: { collapsed: boolean }) {
   return (
     <ExpandedSidebar
       currentView={currentView}
-      folders={folders}
-      showFolders={showFolders}
-      onToggleFolders={() => setShowFolders(!showFolders)}
-      files={files}
-      showFiles={showFiles}
-      onToggleFiles={() => setShowFiles(!showFiles)}
       onNavigate={handleNavigation}
       onSearch={() => setSearchOpen(true)}
       onSettings={() => setSettingsOpen(true)}
@@ -1091,6 +1091,15 @@ export function AppSidebar({ collapsed }: { collapsed: boolean }) {
       onCloseInbox={() => setInboxOpen(false)}
       onNewDocument={handleNewDocument}
       isCreating={createFileMutation.isPending}
+      sidebarData={sidebarData}
+      files={files}
+      showFolders={showFolders}
+      onToggleFolders={() => setShowFolders(!showFolders)}
+      showFiles={showFiles}
+      onToggleFiles={() => setShowFiles(!showFiles)}
+      showDiscussions={showDiscussions}
+      onToggleDiscussions={() => setShowDiscussions(!showDiscussions)}
+      onOpenNewFolderPopover={() => setPopoverOpen(true)}
     />
   );
 }
