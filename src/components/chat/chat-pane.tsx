@@ -206,34 +206,18 @@ export function ChatPane({ documentId, documentName, onClose }: ChatPaneProps) {
         <div className='flex items-center gap-1 px-4 py-2 '>
           {selectedAvatar && (
             <div className='relative -mr-1' title='You'>
-              {selectedAvatar.startsWith("http") || selectedAvatar.startsWith("/") ? (
-                <img
-                  src={selectedAvatar}
-                  alt='You'
-                  className='size-6 rounded-full ring-2 ring-white dark:ring-[#0A0A0A] bg-neutral-100 dark:bg-neutral-800 object-cover'
-                />
-              ) : (
-                <div
-                  className={`size-6 rounded-full bg-gradient-to-br ${selectedAvatar} ring-2 ring-white dark:ring-[#0A0A0A]`}
-                />
-              )}
+              <div
+                className={`size-6 rounded-full bg-gradient-to-br ${selectedAvatar} ring-2 ring-white dark:ring-[#0A0A0A]`}
+              />
               <div className='absolute -bottom-0.5 -right-0.5 size-2 rounded-full bg-green-500 ring-1 ring-white dark:ring-[#0A0A0A]' />
             </div>
           )}
           {collaborators.slice(0, 4).map((user) => (
             <div key={user.id} className='relative -ml-1' title={user.name}>
               {user.avatar ? (
-                user.avatar.startsWith("http") || user.avatar.startsWith("/") ? (
-                  <img
-                    src={user.avatar}
-                    alt={user.name}
-                    className='size-6 rounded-full ring-2 ring-white dark:ring-[#0A0A0A] bg-neutral-100 dark:bg-neutral-800 object-cover'
-                  />
-                ) : (
-                  <div
-                    className={`size-6 rounded-full bg-gradient-to-br ${user.avatar} ring-2 ring-white dark:ring-[#0A0A0A]`}
-                  />
-                )
+                <div
+                  className={`size-6 rounded-full bg-gradient-to-br ${user.avatar} ring-2 ring-white dark:ring-[#0A0A0A]`}
+                />
               ) : (
                 <div className='flex size-6 items-center justify-center rounded-full bg-neutral-200 dark:bg-neutral-700 text-[10px] font-medium ring-2 ring-white dark:ring-[#0A0A0A]'>
                   {user.name.charAt(0)}

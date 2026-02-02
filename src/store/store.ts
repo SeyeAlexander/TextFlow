@@ -110,6 +110,7 @@ interface TextFlowStore {
     lastMessage?: ChatMessage;
   }[];
   getUserById: (userId: string) => User | undefined;
+  migrateLegacyAvatars: () => void;
 }
 
 const generateId = () => Math.random().toString(36).substring(2, 15);
@@ -328,6 +329,38 @@ export const useTextFlowStore = create<TextFlowStore>()(
       getUserById: (userId) => {
         return get().users.find((u) => u.id === userId);
       },
+
+      migrateLegacyAvatars: () =>
+        set((state) => {
+          // Check if migration is needed (any user has http avatar)
+          const needsMigration = state.users.some(
+            (u) => u.avatar && (u.avatar.startsWith("http") || u.avatar.startsWith("/")),
+          );
+
+          if (!needsMigration) return state;
+
+          const gradientOptions = [
+            "from-violet-500 to-purple-500",
+            "from-pink-500 to-rose-500",
+            "from-cyan-500 to-blue-500",
+            "from-emerald-500 to-teal-500",
+            "from-amber-500 to-orange-500",
+            "from-indigo-500 to-violet-500",
+            "from-rose-500 to-pink-500",
+            "from-teal-500 to-cyan-500",
+          ];
+
+          return {
+            users: state.users.map((u, index) => {
+              if (u.avatar && (u.avatar.startsWith("http") || u.avatar.startsWith("/"))) {
+                // Assign a deterministic gradient based on index
+                const gradient = gradientOptions[index % gradientOptions.length];
+                return { ...u, avatar: gradient };
+              }
+              return u;
+            }),
+          };
+        }),
     }),
     {
       name: "textflow-storage",
