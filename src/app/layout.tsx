@@ -4,6 +4,7 @@ import { GeistMono } from "geist/font/mono";
 import "./globals.css";
 import { ThemeProvider } from "@/components/shared/theme-provider";
 import { QueryProvider } from "@/components/providers/query-provider";
+import { Toaster } from "@/components/ui/sonner";
 
 export const metadata: Metadata = {
   title: "TextFlow - Collaborative Rich-Text Editor",
@@ -34,6 +35,7 @@ export default function RootLayout({
             disableTransitionOnChange
           >
             {children}
+            <Toaster />
           </ThemeProvider>
         </QueryProvider>
       </body>

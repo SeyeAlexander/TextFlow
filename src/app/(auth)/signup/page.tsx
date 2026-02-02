@@ -37,6 +37,7 @@ export default function SignupPage() {
       if (result?.error) {
         toast.error(result.error);
       } else if (result?.success) {
+        toast.success(result.message || "Account created successfully.");
         setSuccessMessage(result.message || "Account created successfully.");
       }
     });
