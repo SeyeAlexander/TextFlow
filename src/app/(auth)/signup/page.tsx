@@ -1,23 +1,68 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { Eye, EyeOff } from "lucide-react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { signup } from "@/actions/auth";
+import { signupSchema, SignupValues } from "@/lib/schemas";
+import { toast } from "sonner";
 
 export default function SignupPage() {
   const [showPassword, setShowPassword] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isPending, startTransition] = useTransition();
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setIsLoading(true);
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    setIsLoading(false);
-    window.location.href = "/dashboard";
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<SignupValues>({
+    resolver: zodResolver(signupSchema),
+    defaultValues: {
+      email: "",
+      password: "",
+      firstName: "",
+      lastName: "",
+    },
+  });
+
+  const onSubmit = (data: SignupValues) => {
+    startTransition(async () => {
+      const result = await signup(data);
+      if (result?.error) {
+        toast.error(result.error);
+      } else if (result?.success) {
+        setSuccessMessage(result.message || "Account created successfully.");
+      }
+    });
   };
+
+  if (successMessage) {
+    return (
+      <div className='flex flex-col items-center justify-center text-center'>
+        <div className='mb-6 rounded-full bg-green-500/10 p-4'>
+          <svg
+            className='h-8 w-8 text-green-500'
+            fill='none'
+            viewBox='0 0 24 24'
+            stroke='currentColor'
+          >
+            <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M5 13l4 4L19 7' />
+          </svg>
+        </div>
+        <h2 className='mb-2 text-xl font-medium'>Success!</h2>
+        <p className='mb-6 text-sm text-muted-foreground'>{successMessage}</p>
+        <Link href='/login'>
+          <Button className='h-11 w-full rounded-lg'>Go to Login</Button>
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -28,7 +73,7 @@ export default function SignupPage() {
       </div>
 
       {/* Form */}
-      <form onSubmit={handleSubmit} className='space-y-4'>
+      <form onSubmit={handleSubmit(onSubmit)} className='space-y-4'>
         <div className='grid grid-cols-2 gap-3'>
           <div className='space-y-2'>
             <Label htmlFor='firstName'>First name</Label>
@@ -36,10 +81,13 @@ export default function SignupPage() {
               id='firstName'
               type='text'
               placeholder='John'
-              required
               autoComplete='given-name'
               className='h-11 rounded-lg'
+              {...register("firstName")}
             />
+            {errors.firstName && (
+              <p className='text-xs text-red-500 font-medium'>{errors.firstName.message}</p>
+            )}
           </div>
           <div className='space-y-2'>
             <Label htmlFor='lastName'>Last name</Label>
@@ -47,10 +95,13 @@ export default function SignupPage() {
               id='lastName'
               type='text'
               placeholder='Doe'
-              required
               autoComplete='family-name'
               className='h-11 rounded-lg'
+              {...register("lastName")}
             />
+            {errors.lastName && (
+              <p className='text-xs text-red-500 font-medium'>{errors.lastName.message}</p>
+            )}
           </div>
         </div>
 
@@ -60,10 +111,13 @@ export default function SignupPage() {
             id='email'
             type='email'
             placeholder='name@example.com'
-            required
             autoComplete='email'
             className='h-11 rounded-lg'
+            {...register("email")}
           />
+          {errors.email && (
+            <p className='text-xs text-red-500 font-medium'>{errors.email.message}</p>
+          )}
         </div>
 
         <div className='space-y-2'>
@@ -73,10 +127,9 @@ export default function SignupPage() {
               id='password'
               type={showPassword ? "text" : "password"}
               placeholder='Create a strong password'
-              required
               autoComplete='new-password'
               className='h-11 rounded-lg pr-10'
-              minLength={8}
+              {...register("password")}
             />
             <button
               type='button'
@@ -87,14 +140,17 @@ export default function SignupPage() {
             </button>
           </div>
           <p className='text-xs text-muted-foreground'>Must be at least 8 characters</p>
+          {errors.password && (
+            <p className='text-xs text-red-500 font-medium'>{errors.password.message}</p>
+          )}
         </div>
 
         <Button
           type='submit'
           className='h-11 w-full rounded-lg bg-primary text-primary-foreground hover:bg-primary/80 active:scale-95'
-          disabled={isLoading}
+          disabled={isPending}
         >
-          {isLoading ? (
+          {isPending ? (
             <span className='flex items-center gap-2'>
               <span className='size-4 animate-spin rounded-full border-2 border-white/30 border-t-white' />
               Creating account...

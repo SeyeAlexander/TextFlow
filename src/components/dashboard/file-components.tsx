@@ -18,10 +18,14 @@ import {
   FolderPlus,
   Share2,
 } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { createFolder, renameFolder, deleteFolder } from "@/actions/folders";
+import { createFile, renameFile, deleteFile } from "@/actions/files";
 import { TextFlowFile, TextFlowFolder, useTextFlowStore } from "@/store/store";
 import { formatRelativeTime } from "@/data/dummy-data";
 import { MetallicFolder } from "@/components/icons/metallic-folder";
 import { DocumentIcon } from "@/components/icons/document-icon";
+import { DeleteFolderModal } from "./delete-folder-modal";
 
 // Get icon component based on file type
 function FileIcon({ type, className }: { type: TextFlowFile["type"]; className?: string }) {
@@ -100,17 +104,49 @@ function FileContextMenu({
   position: { x: number; y: number };
   file: TextFlowFile;
 }) {
-  const { deleteFile, toggleStar, toggleShare, updateFile } = useTextFlowStore();
+  const { toggleStar, toggleShare } = useTextFlowStore();
   const [isRenaming, setIsRenaming] = useState(false);
   const [showFolderMenu, setShowFolderMenu] = useState(false);
   const [newName, setNewName] = useState(file.name);
+  const queryClient = useQueryClient();
+
+  const renameMutation = useMutation({
+    mutationFn: async (name: string) => {
+      const formData = new FormData();
+      formData.append("id", file.id);
+      formData.append("name", name);
+      await renameFile(formData);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["sidebar"] });
+      setIsRenaming(false);
+      onClose();
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      const formData = new FormData();
+      formData.append("id", file.id);
+      await deleteFile(formData);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["sidebar"] });
+      onClose();
+    },
+  });
 
   if (!isOpen) return null;
 
   const handleRename = () => {
-    updateFile(file.id, { name: newName });
-    setIsRenaming(false);
-    onClose();
+    if (newName.trim() && newName !== file.name) {
+      renameMutation.mutate(newName.trim());
+    } else {
+      setIsRenaming(false);
+      onClose();
+    }
   };
 
   return (
@@ -179,8 +215,7 @@ function FileContextMenu({
             <div className='my-1 h-px bg-black/5 dark:bg-white/5' />
             <button
               onClick={() => {
-                deleteFile(file.id);
-                onClose();
+                if (confirm("Delete file?")) deleteMutation.mutate();
               }}
               className='flex w-full items-center gap-2 px-3 py-1.5 text-[13px] text-red-500 transition-colors hover:bg-red-500/10'
             >
@@ -287,6 +322,102 @@ export function FileCard({ file, index = 0 }: { file: TextFlowFile; index?: numb
   );
 }
 
+// Context Menu for folders
+function FolderContextMenu({
+  isOpen,
+  onClose,
+  position,
+  folder,
+  onDeleteStart,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  position: { x: number; y: number };
+  folder: { id: string; name: string };
+  onDeleteStart: () => void;
+}) {
+  const [isRenaming, setIsRenaming] = useState(false);
+  const [newName, setNewName] = useState(folder.name);
+  const queryClient = useQueryClient();
+
+  const renameMutation = useMutation({
+    mutationFn: async (name: string) => {
+      const formData = new FormData();
+      formData.append("id", folder.id);
+      formData.append("name", name);
+      await renameFolder(formData);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["sidebar"] });
+      setIsRenaming(false);
+      onClose();
+    },
+  });
+
+  if (!isOpen) return null;
+
+  const handleRename = () => {
+    if (newName.trim() && newName !== folder.name) {
+      renameMutation.mutate(newName.trim());
+    } else {
+      setIsRenaming(false);
+      onClose();
+    }
+  };
+
+  return (
+    <>
+      <div className='fixed inset-0 z-50' onClick={onClose} />
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        style={{
+          left: Math.min(position.x, window.innerWidth - 180),
+          top: Math.min(position.y, window.innerHeight - 250),
+        }}
+        className='fixed z-50 w-44 rounded-lg border border-black/10 bg-white py-1 shadow-lg dark:border-white/10 dark:bg-[#1a1a1a]'
+      >
+        {isRenaming ? (
+          <div className='p-2'>
+            <input
+              type='text'
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              className='w-full rounded bg-black/5 px-2.5 py-1.5 text-[13px] outline-none dark:bg-white/5'
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleRename();
+                if (e.key === "Escape") setIsRenaming(false);
+              }}
+            />
+          </div>
+        ) : (
+          <>
+            <button
+              onClick={() => setIsRenaming(true)}
+              className='flex w-full items-center gap-2 px-3 py-1.5 text-[13px] transition-colors hover:bg-black/5 dark:hover:bg-white/5'
+            >
+              <Edit3 className='size-3.5' />
+              Rename
+            </button>
+            <div className='my-1 h-px bg-black/5 dark:bg-white/5' />
+            <button
+              onClick={onDeleteStart}
+              className='flex w-full items-center gap-2 px-3 py-1.5 text-[13px] text-red-500 transition-colors hover:bg-red-500/10'
+            >
+              <Trash2 className='size-3.5' />
+              Delete
+            </button>
+          </>
+        )}
+      </motion.div>
+    </>
+  );
+}
+
+// Folder Card - with menu
 // Folder Card - with menu
 export function FolderCard({
   folder,
@@ -297,22 +428,81 @@ export function FolderCard({
   fileCount: number;
   index?: number;
 }) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, x: 10 }}
-      animate={{ opacity: 1, x: 0 }}
-      transition={{ delay: index * 0.03, duration: 0.2 }}
-      whileHover={{ y: -2, transition: { duration: 0.2 } }}
-    >
-      <Link href={`/dashboard/folder/${folder.id}`} className='group'>
-        <MetallicFolder size={140} className='transition-transform group-hover:scale-105' />
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [menuPos, setMenuPos] = useState({ x: 0, y: 0 });
+  const queryClient = useQueryClient();
 
-        <div className='flex flex-col mx-3 -mt-2'>
-          <h3 className='mb-1 truncate text-sm font-medium'>{folder.name}</h3>
-          <p className='text-[11px] text-muted-foreground'>{fileCount} files</p>
-        </div>
-      </Link>
-    </motion.div>
+  const handleMenuClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setMenuPos({ x: e.clientX, y: e.clientY });
+    setMenuOpen(true);
+  };
+
+  const deleteMutation = useMutation({
+    mutationFn: async (deleteFiles: boolean) => {
+      const formData = new FormData();
+      formData.append("id", folder.id);
+      formData.append("deleteFiles", String(deleteFiles));
+      await deleteFolder(formData);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["sidebar"] });
+      setShowDeleteModal(false);
+    },
+  });
+
+  return (
+    <>
+      <motion.div
+        initial={{ opacity: 0, x: 10 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ delay: index * 0.03, duration: 0.2 }}
+        whileHover={{ y: -2, transition: { duration: 0.2 } }}
+        className='relative group'
+      >
+        <Link href={`/dashboard/folder/${folder.id}`} className='block'>
+          <MetallicFolder size={140} className='transition-transform group-hover:scale-105' />
+
+          <div className='flex flex-col mx-3 -mt-2'>
+            <h3 className='mb-1 truncate text-sm font-medium'>{folder.name}</h3>
+            <p className='text-[11px] text-muted-foreground'>{fileCount} files</p>
+          </div>
+        </Link>
+
+        {/* Menu Trigger */}
+        <button
+          onClick={handleMenuClick}
+          className='absolute top-2 right-2 rounded-lg p-1.5 text-muted-foreground opacity-0 transition-all hover:bg-black/5 group-hover:opacity-100 dark:hover:bg-white/5 bg-white/50 dark:bg-black/50 backdrop-blur-sm'
+        >
+          <MoreVertical className='size-3.5' />
+        </button>
+      </motion.div>
+
+      <AnimatePresence>
+        {menuOpen && (
+          <FolderContextMenu
+            isOpen={menuOpen}
+            onClose={() => setMenuOpen(false)}
+            position={menuPos}
+            folder={folder}
+            onDeleteStart={() => {
+              setMenuOpen(false);
+              setShowDeleteModal(true);
+            }}
+          />
+        )}
+      </AnimatePresence>
+
+      <DeleteFolderModal
+        isOpen={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        onConfirm={(deleteFiles) => deleteMutation.mutate(deleteFiles)}
+        folderName={folder.name}
+      />
+    </>
   );
 }
 

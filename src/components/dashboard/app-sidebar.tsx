@@ -21,6 +21,10 @@ import {
   MessageCircle,
   Inbox,
 } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { fetchSidebarData } from "@/actions/data";
+import { createFolder, renameFolder, deleteFolder } from "@/actions/folders";
+import { createFile, renameFile, deleteFile } from "@/actions/files";
 import { useTextFlowStore, TextFlowFile, TextFlowFolder } from "@/store/store";
 import { DotLogo } from "@/components/shared/dot-logo";
 import { NotificationsPopover } from "./notifications-popover";
@@ -49,10 +53,25 @@ const BUTTON_ACTIVE = "bg-black/10 dark:bg-white/10";
 
 // Add Folder Popover
 function AddFolderPopover({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
-  const { addFolder } = useTextFlowStore();
   const [name, setName] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
+
+  const queryClient = useQueryClient();
+
+  const { mutate, isPending } = useMutation({
+    mutationFn: async (name: string) => {
+      const formData = new FormData();
+      formData.append("name", name);
+      // parentId is null for top-level folders in sidebar
+      await createFolder(formData);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["sidebar"] });
+      setName("");
+      onClose();
+    },
+  });
 
   useEffect(() => {
     if (isOpen && inputRef.current) {
@@ -79,9 +98,7 @@ function AddFolderPopover({ isOpen, onClose }: { isOpen: boolean; onClose: () =>
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (name.trim()) {
-      addFolder(name.trim());
-      setName("");
-      onClose();
+      mutate(name.trim());
     }
   };
 
@@ -297,17 +314,72 @@ function ContextMenu({
 // File Item with animated icon using ref for group hover
 function FileItem({ file }: { file: TextFlowFile }) {
   const pathname = usePathname();
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [menuPos, setMenuPos] = useState({ x: 0, y: 0 });
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedName, setEditedName] = useState(file.name);
+  const inputRef = useRef<HTMLInputElement>(null);
   const iconRef = useRef<BookTextIconHandle>(null);
+  const queryClient = useQueryClient();
   const isActive = pathname === `/dashboard/document/${file.id}`;
 
-  const handleContextMenu = (e: React.MouseEvent) => {
+  const renameMutation = useMutation({
+    mutationFn: async (newName: string) => {
+      const formData = new FormData();
+      formData.append("id", file.id);
+      formData.append("name", newName);
+      await renameFile(formData);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["sidebar"] });
+      setIsEditing(false);
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      const formData = new FormData();
+      formData.append("id", file.id);
+      await deleteFile(formData);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["sidebar"] });
+    },
+  });
+
+  useEffect(() => {
+    if (isEditing && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [isEditing]);
+
+  const handleRename = (e: React.FormEvent) => {
     e.preventDefault();
-    e.stopPropagation();
-    setMenuPos({ x: e.clientX, y: e.clientY });
-    setMenuOpen(true);
+    if (editedName.trim() && editedName !== file.name) {
+      renameMutation.mutate(editedName.trim());
+    } else {
+      setIsEditing(false);
+    }
   };
+
+  if (isEditing) {
+    return (
+      <form onSubmit={handleRename} className='px-2 py-0.5'>
+        <input
+          ref={inputRef}
+          type='text'
+          value={editedName}
+          onChange={(e) => setEditedName(e.target.value)}
+          onBlur={() => setIsEditing(false)}
+          className='w-full rounded border border-blue-500 bg-white px-1.5 py-0.5 text-[13px] outline-none dark:bg-[#1a1a1a]'
+        />
+      </form>
+    );
+  }
+
+  // TODO: Use Dropdown for actions instead of hardcoded buttons for now or reuse ContextMenu logic
+  // Since we have a complex context menu, we can just trigger mutations from there?
+  // The ContextMenu component needs to be updated too?
+  // Or we can just add buttons here like in the previous attempt which is simpler/faster.
+  // The previous attempt added buttons on hover.
 
   return (
     <>
@@ -324,24 +396,27 @@ function FileItem({ file }: { file: TextFlowFile }) {
           <span className='truncate'>{file.name}</span>
           {file.starred && <Star className='size-2.5 shrink-0 fill-amber-500 text-amber-500' />}
         </Link>
-        <button
-          onClick={handleContextMenu}
-          className='shrink-0 rounded p-0.5 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-black/10 dark:hover:bg-white/10'
-        >
-          <MoreVertical className='size-3.5 text-muted-foreground' />
-        </button>
+
+        {/* Quick Actions (Hover) - Replaces Context Menu button for now or adds to it */}
+        <div className='flex items-center opacity-0 group-hover:opacity-100 transition-opacity gap-1'>
+          <button
+            onClick={() => setIsEditing(true)}
+            className='shrink-0 rounded p-0.5 hover:bg-black/10 dark:hover:bg-white/10'
+            title='Rename'
+          >
+            <Edit3 className='size-3 text-muted-foreground' />
+          </button>
+          <button
+            onClick={() => {
+              if (confirm("Delete file?")) deleteMutation.mutate();
+            }}
+            className='shrink-0 rounded p-0.5 hover:bg-black/10 dark:hover:bg-white/10'
+            title='Delete'
+          >
+            <Trash2 className='size-3 text-muted-foreground' />
+          </button>
+        </div>
       </div>
-      <AnimatePresence>
-        {menuOpen && (
-          <ContextMenu
-            isOpen={menuOpen}
-            onClose={() => setMenuOpen(false)}
-            position={menuPos}
-            item={file}
-            type='file'
-          />
-        )}
-      </AnimatePresence>
     </>
   );
 }
@@ -349,59 +424,114 @@ function FileItem({ file }: { file: TextFlowFile }) {
 // Folder Item with animated icon using ref for group hover
 function FolderItem({ folder }: { folder: TextFlowFolder }) {
   const pathname = usePathname();
-  const { getFilesByFolder } = useTextFlowStore();
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [menuPos, setMenuPos] = useState({ x: 0, y: 0 });
+  const { toggleFolderOpen, getFilesByFolder } = useTextFlowStore();
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedName, setEditedName] = useState(folder.name);
+  const inputRef = useRef<HTMLInputElement>(null);
   const iconRef = useRef<FolderKanbanIconHandle>(null);
+  const queryClient = useQueryClient();
 
   const files = getFilesByFolder(folder.id);
   const isActive = pathname === `/dashboard/folder/${folder.id}`;
 
-  const handleContextMenu = (e: React.MouseEvent) => {
+  const renameMutation = useMutation({
+    mutationFn: async (newName: string) => {
+      const formData = new FormData();
+      formData.append("id", folder.id);
+      formData.append("name", newName);
+      await renameFolder(formData);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["sidebar"] });
+      setIsEditing(false);
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      const formData = new FormData();
+      formData.append("id", folder.id);
+      await deleteFolder(formData);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["sidebar"] });
+    },
+  });
+
+  useEffect(() => {
+    if (isEditing && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [isEditing]);
+
+  const handleRename = (e: React.FormEvent) => {
     e.preventDefault();
-    e.stopPropagation();
-    setMenuPos({ x: e.clientX, y: e.clientY });
-    setMenuOpen(true);
+    if (editedName.trim() && editedName !== folder.name) {
+      renameMutation.mutate(editedName.trim());
+    } else {
+      setIsEditing(false);
+    }
   };
 
+  if (isEditing) {
+    return (
+      <form onSubmit={handleRename} className='ml-6 px-2 py-1'>
+        <input
+          ref={inputRef}
+          type='text'
+          value={editedName}
+          onChange={(e) => setEditedName(e.target.value)}
+          onBlur={() => setIsEditing(false)}
+          className='w-full rounded border border-blue-500 bg-white px-1.5 py-0.5 text-[13px] outline-none dark:bg-[#1a1a1a]'
+        />
+      </form>
+    );
+  }
+
   return (
-    <>
-      <div
-        className='group'
-        onMouseEnter={() => iconRef.current?.startAnimation()}
-        onMouseLeave={() => iconRef.current?.stopAnimation()}
+    <div
+      className='group relative flex items-center gap-1 rounded-md py-1 px-2 transition-colors hover:bg-black/5 dark:hover:bg-white/5'
+      onMouseEnter={() => iconRef.current?.startAnimation()}
+      onMouseLeave={() => iconRef.current?.stopAnimation()}
+    >
+      <button
+        onClick={() => toggleFolderOpen(folder.id)}
+        className='p-0.5 text-muted-foreground hover:text-foreground shrink-0'
       >
-        <Link
-          href={`/dashboard/folder/${folder.id}`}
-          className={`${BUTTON_STYLE} ${isActive ? BUTTON_ACTIVE : BUTTON_HOVER}`}
-        >
-          <FolderKanbanIcon ref={iconRef} size={14} className='shrink-0 text-muted-foreground' />
-          <span className='truncate flex-1'>{folder.name}</span>
-          <span className='text-[11px] text-muted-foreground'>{files.length}</span>
-          <button
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              handleContextMenu(e);
-            }}
-            className='shrink-0 rounded p-0.5 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-black/10 dark:hover:bg-white/10'
-          >
-            <MoreVertical className='size-3.5 text-muted-foreground' />
-          </button>
-        </Link>
-      </div>
-      <AnimatePresence>
-        {menuOpen && (
-          <ContextMenu
-            isOpen={menuOpen}
-            onClose={() => setMenuOpen(false)}
-            position={menuPos}
-            item={folder}
-            type='folder'
-          />
+        {folder.isOpen ? <ChevronDown className='size-3' /> : <ChevronRight className='size-3' />}
+      </button>
+
+      <Link
+        href={`/dashboard/folder/${folder.id}`}
+        className='flex flex-1 items-center gap-2 min-w-0'
+      >
+        <FolderKanbanIcon ref={iconRef} size={14} className='shrink-0 text-muted-foreground' />
+        <span className='truncate flex-1 text-[13px]'>{folder.name}</span>
+        {files.length > 0 && (
+          <span className='text-[10px] text-muted-foreground shrink-0'>{files.length}</span>
         )}
-      </AnimatePresence>
-    </>
+      </Link>
+
+      {/* Quick Actions (Hover) */}
+      <div className='absolute right-2 hidden items-center gap-1 group-hover:flex bg-white dark:bg-[#0A0A0A] shadow-sm rounded-md border border-border/50 px-1'>
+        <button
+          onClick={() => setIsEditing(true)}
+          className='rounded p-1 hover:bg-black/10 dark:hover:bg-white/10'
+          title='Rename'
+        >
+          <Edit3 className='size-3 text-muted-foreground' />
+        </button>
+        <button
+          onClick={() => {
+            if (confirm("Delete folder and all contents?")) deleteMutation.mutate();
+          }}
+          className='rounded p-1 hover:bg-black/10 dark:hover:bg-white/10'
+          title='Delete'
+        >
+          <Trash2 className='size-3 text-muted-foreground' />
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -790,13 +920,14 @@ function ExpandedSidebar({
   onCloseInbox,
   discussions,
   onOpenDiscussion,
+  files, // Add files to props
 }: any) {
   const router = useRouter();
   const addFile = useTextFlowStore((s) => s.addFile);
-  const files = useTextFlowStore((s) => s.files);
+  // Remove: const files = useTextFlowStore((s) => s.files);
 
-  // Compute counts locally from the files array selector
-  const starredCount = files.filter((f) => f.starred).length;
+  // Compute counts locally from the passed files array prop
+  const starredCount = files.filter((f: any) => f.starred).length;
   const recentCount = files.length > 0 ? Math.min(files.length, 10) : 0; // Approximate for badge
   const sharedCount = files.filter((f) => f.shared).length;
 
@@ -1129,7 +1260,7 @@ export function AppSidebar() {
   const collapsed = useTextFlowStore((s) => s.sidebarCollapsed);
   const currentView = useTextFlowStore((s) => s.currentView);
   const setView = useTextFlowStore((s) => s.setView);
-  const folders = useTextFlowStore((s) => s.folders);
+  // Removed store folders/files selectors
   const getFilesByFolder = useTextFlowStore((s) => s.getFilesByFolder);
   const toggleFolderOpen = useTextFlowStore((s) => s.toggleFolderOpen);
   const addFolder = useTextFlowStore((s) => s.addFolder);
@@ -1139,6 +1270,15 @@ export function AppSidebar() {
   const setActiveChatDocument = useTextFlowStore((s) => s.setActiveChatDocument);
   const setChatOpen = useTextFlowStore((s) => s.setChatOpen);
   const toggleSidebar = useTextFlowStore((s) => s.toggleSidebar);
+
+  // Data Fetching
+  const { data } = useQuery({
+    queryKey: ["sidebar"],
+    queryFn: fetchSidebarData,
+  });
+
+  const folders = data?.folders || [];
+  const files = data?.recentFiles || [];
 
   const [showFolders, setShowFolders] = useState(true);
   const [showFiles, setShowFiles] = useState(true);
@@ -1177,6 +1317,7 @@ export function AppSidebar() {
       getFilesByFolder={getFilesByFolder}
       showFolders={showFolders}
       onToggleFolders={() => setShowFolders(!showFolders)}
+      files={files}
       showFiles={showFiles}
       onToggleFiles={() => setShowFiles(!showFiles)}
       showDiscussions={showDiscussions}

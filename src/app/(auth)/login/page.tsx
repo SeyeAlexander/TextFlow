@@ -1,22 +1,40 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { Eye, EyeOff } from "lucide-react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { login } from "@/actions/auth";
+import { loginSchema, LoginValues } from "@/lib/schemas";
+import { toast } from "sonner"; // Assuming sonner is available (package.json has it)
 
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isPending, startTransition] = useTransition();
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setIsLoading(true);
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    setIsLoading(false);
-    window.location.href = "/dashboard";
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<LoginValues>({
+    resolver: zodResolver(loginSchema),
+    defaultValues: {
+      email: "",
+      password: "",
+    },
+  });
+
+  const onSubmit = (data: LoginValues) => {
+    startTransition(async () => {
+      const result = await login(data);
+      if (result?.error) {
+        toast.error(result.error);
+      }
+    });
   };
 
   return (
@@ -28,17 +46,20 @@ export default function LoginPage() {
       </div>
 
       {/* Form */}
-      <form onSubmit={handleSubmit} className='space-y-4'>
+      <form onSubmit={handleSubmit(onSubmit)} className='space-y-4'>
         <div className='space-y-2'>
           <Label htmlFor='email'>Email</Label>
           <Input
             id='email'
             type='email'
             placeholder='name@example.com'
-            required
             autoComplete='email'
             className='h-11 rounded-lg'
+            {...register("email")}
           />
+          {errors.email && (
+            <p className='text-xs text-red-500 font-medium'>{errors.email.message}</p>
+          )}
         </div>
 
         <div className='space-y-2'>
@@ -56,9 +77,9 @@ export default function LoginPage() {
               id='password'
               type={showPassword ? "text" : "password"}
               placeholder='••••••••'
-              required
               autoComplete='current-password'
               className='h-11 rounded-lg pr-10'
+              {...register("password")}
             />
             <button
               type='button'
@@ -68,14 +89,17 @@ export default function LoginPage() {
               {showPassword ? <EyeOff className='size-4' /> : <Eye className='size-4' />}
             </button>
           </div>
+          {errors.password && (
+            <p className='text-xs text-red-500 font-medium'>{errors.password.message}</p>
+          )}
         </div>
 
         <Button
           type='submit'
           className='h-11 w-full rounded-lg bg-primary text-primary-foreground hover:bg-primary/80 active:scale-95'
-          disabled={isLoading}
+          disabled={isPending}
         >
-          {isLoading ? (
+          {isPending ? (
             <span className='flex items-center gap-2'>
               <span className='size-4 animate-spin rounded-full border-2 border-white/30 border-t-white' />
               Signing in...
