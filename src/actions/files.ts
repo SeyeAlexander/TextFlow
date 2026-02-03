@@ -24,11 +24,31 @@ export async function createFile(formData: FormData) {
   if (!name) return { error: "Name is required" };
 
   try {
+    const emptyLexicalState = {
+      root: {
+        children: [
+          {
+            children: [],
+            direction: null,
+            format: "",
+            indent: 0,
+            type: "paragraph",
+            version: 1,
+          },
+        ],
+        direction: null,
+        format: "",
+        indent: 0,
+        type: "root",
+        version: 1,
+      },
+    };
+
     const values: any = {
       ownerId: user.id,
       name,
       folderId: folderId || null,
-      content: {}, // Empty Lexical state
+      content: emptyLexicalState,
     };
 
     // Use provided ID if available

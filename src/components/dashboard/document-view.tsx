@@ -229,64 +229,110 @@ export function DocumentView({ fileId }: { fileId: string }) {
   });
 
   const [isSaving, setIsSaving] = useState(false);
+  const [isDirty, setIsDirty] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [documentTitle, setDocumentTitle] = useState("");
 
   const isDeletedRef = useRef(false);
+  const latestContentRef = useRef<string | null>(null);
+  const lastSavedRef = useRef<string | null>(null);
 
   // Initialize title
   useEffect(() => {
     if (file) {
       setDocumentTitle(file.name);
+      if (file.content) {
+        const serialized =
+          typeof file.content === "string" ? file.content : JSON.stringify(file.content);
+        lastSavedRef.current = serialized;
+        setIsDirty(false);
+      }
     }
   }, [file]);
-
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleContentChange = useCallback(
     (content: string) => {
       // If deleted, do not save
       if (isDeletedRef.current) return;
 
-      setIsSaving(true);
+      latestContentRef.current = content;
 
-      // Clear existing timeout
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
+      if (content === lastSavedRef.current) {
+        return;
       }
-
-      // Set new timeout
-      timeoutRef.current = setTimeout(async () => {
-        // Double check before network call
-        if (isDeletedRef.current) return;
-
-        try {
-          await saveMutation.mutateAsync({ id: fileId, content });
-        } catch (error: any) {
-          if (error.message.includes("Unauthorized")) {
-            toast.error("Session expired. Please log in again.");
-            // Optional: redirect to login or show a modal
-            // router.push("/login");
-          } else {
-            toast.error("Failed to save changes");
-          }
-        } finally {
-          setIsSaving(false);
-          timeoutRef.current = null;
-        }
-      }, 2000);
+      setIsDirty(true);
     },
     [fileId, saveMutation],
   );
 
-  // Cleanup timeout on unmount
+  const handleManualSave = useCallback(async () => {
+    if (isDeletedRef.current) return;
+    const latest = latestContentRef.current;
+    if (!latest || latest === lastSavedRef.current) {
+      setIsDirty(false);
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      if (process.env.NODE_ENV !== "production") {
+        try {
+          const parsed = JSON.parse(latest);
+          console.log("[document] save payload", {
+            hasRoot: !!parsed?.root,
+            rootChildrenCount: Array.isArray(parsed?.root?.children)
+              ? parsed.root.children.length
+              : null,
+          });
+        } catch (e) {
+          console.log("[document] save payload parse failed", e);
+        }
+      }
+      await saveMutation.mutateAsync({ id: fileId, content: latest });
+      lastSavedRef.current = latest;
+      setIsDirty(false);
+    } catch (error: any) {
+      if (error.message.includes("Unauthorized")) {
+        toast.error("Session expired. Please log in again.");
+      } else {
+        toast.error("Failed to save changes");
+      }
+    } finally {
+      setIsSaving(false);
+    }
+  }, [fileId, saveMutation]);
+
   useEffect(() => {
-    return () => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const isMac = navigator.platform.toLowerCase().includes("mac");
+      const isSave = (isMac ? event.metaKey : event.ctrlKey) && event.key.toLowerCase() === "s";
+
+      if (isSave) {
+        event.preventDefault();
+        handleManualSave();
       }
     };
-  }, []);
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [handleManualSave]);
+
+  useEffect(() => {
+    if (file) {
+      console.log("[document] fetched", {
+        id: file.id,
+        name: file.name,
+        hasContent: !!file.content,
+        contentType: typeof file.content,
+        contentKeys:
+          file.content && typeof file.content === "object"
+            ? Object.keys(file.content).slice(0, 8)
+            : [],
+        hasRoot:
+          file.content && typeof file.content === "object" ? !!file.content.root : false,
+      });
+    }
+  }, [file]);
 
   // Redirect if document not found (deleted)
   useEffect(() => {
@@ -345,7 +391,7 @@ export function DocumentView({ fileId }: { fileId: string }) {
                   animate={{ opacity: 1 }}
                   className='text-[10px] text-muted-foreground'
                 >
-                  {isSaving ? "Saving..." : "All changes saved"}
+                  {isSaving ? "Saving..." : isDirty ? "Unsaved changes" : "All changes saved"}
                 </motion.p>
               </div>
             </div>
@@ -401,10 +447,12 @@ export function DocumentView({ fileId }: { fileId: string }) {
               )}
 
               <button
-                className={`rounded-lg p-2 transition-colors hover:bg-black/5 dark:hover:bg-white/5 ${
+                onClick={handleManualSave}
+                disabled={!isDirty || isSaving}
+                className={`rounded-lg p-2 transition-colors hover:bg-black/5 dark:hover:bg-white/5 disabled:opacity-50 ${
                   isSaving ? "animate-pulse" : ""
                 }`}
-                title='Saved automatically'
+                title='Save document'
               >
                 <Save className='size-4 text-muted-foreground' />
               </button>
@@ -419,18 +467,13 @@ export function DocumentView({ fileId }: { fileId: string }) {
             >
               {/* Lexical Editor */}
               <Editor
-                key={
-                  fileId +
-                  (file.content &&
-                  (typeof file.content === "string" ? file.content !== "{}" : file.content.root)
-                    ? "-loaded"
-                    : "-empty")
-                }
+                key={`${fileId}-${file.updatedAt || "na"}`}
                 initialContent={
                   typeof file.content === "string" ? file.content : JSON.stringify(file.content)
                 }
                 onChange={handleContentChange}
                 documentId={fileId}
+                enableAutoName={false}
               />
             </motion.div>
           </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { LexicalComposer } from "@lexical/react/LexicalComposer";
 import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin";
 import { ContentEditable } from "@lexical/react/LexicalContentEditable";
@@ -30,13 +30,29 @@ import { ToolbarPlugin } from "./plugins/toolbar-plugin";
 // Plugin to capture changes and export JSON
 function OnChangePlugin({ onChange }: { onChange: (json: string) => void }) {
   const [editor] = useLexicalComposerContext();
+  const lastJsonRef = useRef<string | null>(null);
+  const loggedFirstContentRef = useRef(false);
 
   useEffect(() => {
     return editor.registerUpdateListener(({ editorState }) => {
       editorState.read(() => {
         // Serialize to JSON string for storage
-        const jsonString = JSON.stringify(editorState.toJSON());
-        onChange(jsonString);
+        const json = editorState.toJSON();
+        const jsonString = JSON.stringify(json);
+        if (
+          !loggedFirstContentRef.current &&
+          Array.isArray((json as any)?.root?.children) &&
+          (json as any).root.children.length > 0
+        ) {
+          loggedFirstContentRef.current = true;
+          console.log("[editor] first content", {
+            rootChildrenCount: (json as any).root.children.length,
+          });
+        }
+        if (jsonString !== lastJsonRef.current) {
+          lastJsonRef.current = jsonString;
+          onChange(jsonString);
+        }
       });
     });
   }, [editor, onChange]);
@@ -49,6 +65,7 @@ interface EditorProps {
   onChange?: (json: string) => void;
   readOnly?: boolean;
   documentId?: string;
+  enableAutoName?: boolean;
 }
 
 // Plugin to expose editor to window for debugging
@@ -62,7 +79,46 @@ function DebugExposePlugin() {
   return null;
 }
 
-export function Editor({ initialContent, onChange, readOnly = false, documentId }: EditorProps) {
+function LoadInitialContentPlugin({ initialContent }: { initialContent?: string }) {
+  const [editor] = useLexicalComposerContext();
+  const appliedRef = useRef(false);
+
+  useEffect(() => {
+    if (!initialContent || appliedRef.current) return;
+
+    let parsed: any;
+    try {
+      parsed = JSON.parse(initialContent);
+    } catch {
+      return;
+    }
+
+    if (!parsed?.root) return;
+
+    editor.getEditorState().read(() => {
+      const root = $getRoot();
+      const isEmpty = root.getChildren().length === 0;
+
+      if (isEmpty) {
+        editor.update(() => {
+          const nextState = editor.parseEditorState(initialContent);
+          editor.setEditorState(nextState);
+        });
+        appliedRef.current = true;
+      }
+    });
+  }, [editor, initialContent]);
+
+  return null;
+}
+
+export function Editor({
+  initialContent,
+  onChange,
+  readOnly = false,
+  documentId,
+  enableAutoName = true,
+}: EditorProps) {
   const initialConfig = {
     namespace: "TextFlowEditor",
     theme: editorTheme,
@@ -70,13 +126,21 @@ export function Editor({ initialContent, onChange, readOnly = false, documentId 
     editorState: (editor: any) => {
       if (initialContent) {
         try {
-          // Check if it's valid JSON
           const parsed = JSON.parse(initialContent);
           // console.log("Initializing Editor with:", parsed); // Debug
 
           if (parsed.root) {
-            // Fix: parseEditorState expects the Object, not string
-            const state = editor.parseEditorState(parsed);
+            if (process.env.NODE_ENV !== "production") {
+              const rootChildrenCount = Array.isArray(parsed?.root?.children)
+                ? parsed.root.children.length
+                : null;
+              const firstText =
+                parsed?.root?.children?.[0]?.children?.[0]?.text ||
+                parsed?.root?.children?.[0]?.text ||
+                null;
+              console.log("[editor] init", { rootChildrenCount, firstText });
+            }
+            const state = editor.parseEditorState(initialContent);
             return state;
           } else {
             console.warn("Parsed content missing root:", parsed);
@@ -110,6 +174,7 @@ export function Editor({ initialContent, onChange, readOnly = false, documentId 
   return (
     <LexicalComposer initialConfig={initialConfig}>
       <DebugExposePlugin />
+      <LoadInitialContentPlugin initialContent={initialContent} />
       <div className='relative w-full h-full flex flex-col dark:bg-[#0A0A0A] bg-white'>
         {/* Floating Toolbar and Slash Commands replace fixed toolbar */}
         {!readOnly && (
@@ -142,7 +207,7 @@ export function Editor({ initialContent, onChange, readOnly = false, documentId 
           <MarkdownShortcutPlugin transformers={TRANSFORMERS} />
 
           {/* Custom Plugins */}
-          {documentId && <AutoNamePlugin documentId={documentId} />}
+          {documentId && enableAutoName && <AutoNamePlugin documentId={documentId} />}
           {onChange && <OnChangePlugin onChange={onChange} />}
         </div>
       </div>

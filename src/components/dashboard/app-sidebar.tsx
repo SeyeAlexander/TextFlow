@@ -1312,6 +1312,25 @@ export function AppSidebar({ collapsed }: { collapsed: boolean }) {
 
     // Generate ID and navigate immediately
     const tempId = crypto.randomUUID();
+    const emptyLexicalState = {
+      root: {
+        children: [
+          {
+            children: [],
+            direction: null,
+            format: "",
+            indent: 0,
+            type: "paragraph",
+            version: 1,
+          },
+        ],
+        direction: null,
+        format: "",
+        indent: 0,
+        type: "root",
+        version: 1,
+      },
+    };
 
     // Optimistically update sidebar
     queryClient.setQueryData(["sidebar"], (old: any) => {
@@ -1324,7 +1343,7 @@ export function AppSidebar({ collapsed }: { collapsed: boolean }) {
             name: "New Document",
             updatedAt: new Date().toISOString(),
             ownerId: "user", // placeholder
-            content: {},
+            content: emptyLexicalState,
             starred: false,
             shared: false,
           },
@@ -1337,7 +1356,7 @@ export function AppSidebar({ collapsed }: { collapsed: boolean }) {
     queryClient.setQueryData(["document", tempId], {
       id: tempId,
       name: "New Document",
-      content: "{}", // Empty JSON
+      content: emptyLexicalState,
       updatedAt: new Date().toISOString(),
       ownerId: "user",
       starred: false,

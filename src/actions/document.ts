@@ -4,7 +4,6 @@ import { createClient } from "@/utils/supabase/server";
 import { db } from "@/db";
 import { documents, profiles, documentCollaborators, notifications } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
 import { createDocumentChat } from "./chat";
 
 export async function saveDocument(documentId: string, content: string) {
@@ -39,8 +38,6 @@ export async function saveDocument(documentId: string, content: string) {
       updatedAt: new Date(),
     })
     .where(eq(documents.id, documentId));
-
-  revalidatePath(`/dashboard/document/${documentId}`);
 }
 
 export async function toggleStar(documentId: string) {
