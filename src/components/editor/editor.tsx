@@ -31,7 +31,6 @@ import { ToolbarPlugin } from "./plugins/toolbar-plugin";
 function OnChangePlugin({ onChange }: { onChange: (json: string) => void }) {
   const [editor] = useLexicalComposerContext();
   const lastJsonRef = useRef<string | null>(null);
-  const loggedFirstContentRef = useRef(false);
 
   useEffect(() => {
     return editor.registerUpdateListener(({ editorState }) => {
@@ -39,16 +38,6 @@ function OnChangePlugin({ onChange }: { onChange: (json: string) => void }) {
         // Serialize to JSON string for storage
         const json = editorState.toJSON();
         const jsonString = JSON.stringify(json);
-        if (
-          !loggedFirstContentRef.current &&
-          Array.isArray((json as any)?.root?.children) &&
-          (json as any).root.children.length > 0
-        ) {
-          loggedFirstContentRef.current = true;
-          console.log("[editor] first content", {
-            rootChildrenCount: (json as any).root.children.length,
-          });
-        }
         if (jsonString !== lastJsonRef.current) {
           lastJsonRef.current = jsonString;
           onChange(jsonString);
@@ -95,18 +84,19 @@ function LoadInitialContentPlugin({ initialContent }: { initialContent?: string 
 
     if (!parsed?.root) return;
 
+    let isEmpty = true;
     editor.getEditorState().read(() => {
       const root = $getRoot();
-      const isEmpty = root.getChildren().length === 0;
-
-      if (isEmpty) {
-        editor.update(() => {
-          const nextState = editor.parseEditorState(initialContent);
-          editor.setEditorState(nextState);
-        });
-        appliedRef.current = true;
-      }
+      isEmpty = root.getChildren().length === 0;
     });
+
+    if (!isEmpty) return;
+
+    const nextState = editor.parseEditorState(initialContent);
+    if (nextState.isEmpty()) return;
+
+    editor.setEditorState(nextState);
+    appliedRef.current = true;
   }, [editor, initialContent]);
 
   return null;
@@ -130,16 +120,6 @@ export function Editor({
           // console.log("Initializing Editor with:", parsed); // Debug
 
           if (parsed.root) {
-            if (process.env.NODE_ENV !== "production") {
-              const rootChildrenCount = Array.isArray(parsed?.root?.children)
-                ? parsed.root.children.length
-                : null;
-              const firstText =
-                parsed?.root?.children?.[0]?.children?.[0]?.text ||
-                parsed?.root?.children?.[0]?.text ||
-                null;
-              console.log("[editor] init", { rootChildrenCount, firstText });
-            }
             const state = editor.parseEditorState(initialContent);
             return state;
           } else {

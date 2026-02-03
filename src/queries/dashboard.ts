@@ -336,26 +336,7 @@ export async function getDocumentById(id: string) {
 
   const isShared = doc.isPublic || collaboratorCheck?.count > 0;
 
-  if (process.env.NODE_ENV !== "production") {
-    const content = doc.content as any;
-    console.log("[document] db fetch", {
-      id: doc.id,
-      name: doc.name,
-      hasContent: !!content,
-      contentType: typeof content,
-      contentKeys: content && typeof content === "object" ? Object.keys(content).slice(0, 8) : [],
-      hasRoot: !!content?.root,
-      rootType: typeof content?.root,
-      rootChildrenCount: Array.isArray(content?.root?.children)
-        ? content.root.children.length
-        : null,
-      firstChildType: content?.root?.children?.[0]?.type || null,
-      firstText:
-        content?.root?.children?.[0]?.children?.[0]?.text ||
-        content?.root?.children?.[0]?.text ||
-        null,
-    });
-  }
+  // Debug logging removed
 
   return {
     ...doc,

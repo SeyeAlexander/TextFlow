@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import Image from "next/image";
@@ -44,6 +44,16 @@ function FileIcon({ type, className }: { type: TextFlowFile["type"]; className?:
     default:
       return <File className={className} />;
   }
+}
+
+function RelativeTime({ iso }: { iso: string }) {
+  const [text, setText] = useState("");
+
+  useEffect(() => {
+    setText(formatRelativeTime(iso));
+  }, [iso]);
+
+  return <span suppressHydrationWarning>{text}</span>;
 }
 
 // Add to Folder Submenu
@@ -646,7 +656,7 @@ export function FileList({ files }: { files: TextFlowFile[] }) {
 
               {/* Modified */}
               <div className='w-28 text-right text-[11px] text-muted-foreground'>
-                {formatRelativeTime(file.updatedAt)}
+                <RelativeTime iso={file.updatedAt} />
               </div>
 
               {/* Actions */}

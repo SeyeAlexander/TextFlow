@@ -18,6 +18,7 @@ function debounce<T extends (...args: any[]) => void>(func: T, wait: number) {
 export function AutoNamePlugin({ documentId }: { documentId: string }) {
   const [editor] = useLexicalComposerContext();
   const queryClient = useQueryClient();
+  const didRenameRef = useRef(false);
 
   const renameMutation = useMutation({
     mutationFn: async (name: string) => {
@@ -27,8 +28,11 @@ export function AutoNamePlugin({ documentId }: { documentId: string }) {
       formData.append("name", name);
       return renameFile(formData);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["document", documentId] });
+    onSuccess: (_, name) => {
+      didRenameRef.current = true;
+      queryClient.setQueryData(["document", documentId], (old: any) =>
+        old ? { ...old, name } : old,
+      );
       queryClient.invalidateQueries({ queryKey: ["sidebar"] });
     },
   });
@@ -39,7 +43,7 @@ export function AutoNamePlugin({ documentId }: { documentId: string }) {
         const root = $getRoot();
         const textContent = root.getTextContent();
 
-        if (!textContent.trim()) return;
+        if (!textContent.trim() || didRenameRef.current) return;
 
         const firstLine = textContent.split("\n")[0].trim().substring(0, 50);
         if (!firstLine) return;
@@ -51,7 +55,6 @@ export function AutoNamePlugin({ documentId }: { documentId: string }) {
         const isGenericName = /^(New Document|New\(\d+\)|New|Untitled)$/i.test(currentFile.name);
 
         if (isGenericName && firstLine !== currentFile.name) {
-          console.log("Auto-naming document to:", firstLine);
           renameMutation.mutate(firstLine);
         }
       });

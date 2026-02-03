@@ -265,42 +265,67 @@ export function DocumentView({ fileId }: { fileId: string }) {
     [fileId, saveMutation],
   );
 
-  const handleManualSave = useCallback(async () => {
-    if (isDeletedRef.current) return;
-    const latest = latestContentRef.current;
-    if (!latest || latest === lastSavedRef.current) {
-      setIsDirty(false);
-      return;
-    }
-
-    setIsSaving(true);
-    try {
-      if (process.env.NODE_ENV !== "production") {
-        try {
-          const parsed = JSON.parse(latest);
-          console.log("[document] save payload", {
-            hasRoot: !!parsed?.root,
-            rootChildrenCount: Array.isArray(parsed?.root?.children)
-              ? parsed.root.children.length
-              : null,
-          });
-        } catch (e) {
-          console.log("[document] save payload parse failed", e);
+  const handleManualSave = useCallback(
+    async (options?: { showToast?: boolean }) => {
+      if (isDeletedRef.current) return;
+      const latest = latestContentRef.current;
+      if (!latest || latest === lastSavedRef.current) {
+        setIsDirty(false);
+        if (options?.showToast) {
+          toast.message("No changes to save");
         }
+        return;
       }
-      await saveMutation.mutateAsync({ id: fileId, content: latest });
-      lastSavedRef.current = latest;
-      setIsDirty(false);
-    } catch (error: any) {
-      if (error.message.includes("Unauthorized")) {
-        toast.error("Session expired. Please log in again.");
-      } else {
-        toast.error("Failed to save changes");
+
+      setIsSaving(true);
+      try {
+        const parsed = JSON.parse(latest);
+        const isGenericName = /^(New Document|New\(\d+\)|New|Untitled)$/i.test(documentTitle);
+        let firstLine = "";
+        if (parsed?.root?.children?.length) {
+          const firstNode = parsed.root.children[0];
+          if (Array.isArray(firstNode?.children)) {
+            firstLine = firstNode.children
+              .map((c: any) => c?.text || "")
+              .join("")
+              .trim()
+              .substring(0, 50);
+          } else if (firstNode?.text) {
+            firstLine = String(firstNode.text).trim().substring(0, 50);
+          }
+        }
+
+        if (isGenericName && firstLine) {
+          const { renameFile } = await import("@/actions/files");
+          const formData = new FormData();
+          formData.append("id", fileId);
+          formData.append("name", firstLine);
+          await renameFile(formData);
+          setDocumentTitle(firstLine);
+          queryClient.setQueryData(["document", fileId], (old: any) =>
+            old ? { ...old, name: firstLine } : old,
+          );
+          queryClient.invalidateQueries({ queryKey: ["sidebar"] });
+        }
+
+        await saveMutation.mutateAsync({ id: fileId, content: latest });
+        lastSavedRef.current = latest;
+        setIsDirty(false);
+        if (options?.showToast) {
+          toast.success("Saved");
+        }
+      } catch (error: any) {
+        if (error.message.includes("Unauthorized")) {
+          toast.error("Session expired. Please log in again.");
+        } else {
+          toast.error("Failed to save changes");
+        }
+      } finally {
+        setIsSaving(false);
       }
-    } finally {
-      setIsSaving(false);
-    }
-  }, [fileId, saveMutation]);
+    },
+    [documentTitle, fileId, queryClient, saveMutation],
+  );
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -309,30 +334,13 @@ export function DocumentView({ fileId }: { fileId: string }) {
 
       if (isSave) {
         event.preventDefault();
-        handleManualSave();
+        handleManualSave({ showToast: true });
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [handleManualSave]);
-
-  useEffect(() => {
-    if (file) {
-      console.log("[document] fetched", {
-        id: file.id,
-        name: file.name,
-        hasContent: !!file.content,
-        contentType: typeof file.content,
-        contentKeys:
-          file.content && typeof file.content === "object"
-            ? Object.keys(file.content).slice(0, 8)
-            : [],
-        hasRoot:
-          file.content && typeof file.content === "object" ? !!file.content.root : false,
-      });
-    }
-  }, [file]);
 
   // Redirect if document not found (deleted)
   useEffect(() => {
@@ -385,6 +393,13 @@ export function DocumentView({ fileId }: { fileId: string }) {
                   className='text-sm font-medium'
                 >
                   {documentTitle}
+                  {isDirty && (
+                    <span
+                      className='ml-2 inline-block size-2 rounded-full bg-amber-400 align-middle'
+                      aria-label='Unsaved changes'
+                      title='Unsaved changes'
+                    />
+                  )}
                 </motion.h1>
                 <motion.p
                   initial={{ opacity: 0 }}
@@ -447,7 +462,7 @@ export function DocumentView({ fileId }: { fileId: string }) {
               )}
 
               <button
-                onClick={handleManualSave}
+                onClick={() => handleManualSave({ showToast: true })}
                 disabled={!isDirty || isSaving}
                 className={`rounded-lg p-2 transition-colors hover:bg-black/5 dark:hover:bg-white/5 disabled:opacity-50 ${
                   isSaving ? "animate-pulse" : ""
@@ -473,7 +488,7 @@ export function DocumentView({ fileId }: { fileId: string }) {
                 }
                 onChange={handleContentChange}
                 documentId={fileId}
-                enableAutoName={false}
+                enableAutoName={true}
               />
             </motion.div>
           </div>
