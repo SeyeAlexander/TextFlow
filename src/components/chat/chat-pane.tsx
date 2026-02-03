@@ -175,7 +175,14 @@ export function ChatPane({ documentId, documentName, onClose }: ChatPaneProps) {
   useEffect(() => {
     if (!chatId) return;
 
+    // Initial fetch
     getMessages(chatId).then(setMessages);
+
+    // Poll for changes every 3 seconds (Robust fallback for Realtime)
+    const intervalId = setInterval(async () => {
+      const fresh = await getMessages(chatId);
+      setMessages(fresh);
+    }, 3000);
 
     const supabase = createClient();
     const channel = supabase
@@ -196,6 +203,7 @@ export function ChatPane({ documentId, documentName, onClose }: ChatPaneProps) {
       .subscribe();
 
     return () => {
+      clearInterval(intervalId);
       supabase.removeChannel(channel);
     };
   }, [chatId]);

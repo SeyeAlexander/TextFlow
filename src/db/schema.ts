@@ -126,5 +126,93 @@ export const notifications = pgTable("notifications", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-export type DocumentCollaborator = typeof documentCollaborators.$inferSelect;
-export type Notification = typeof notifications.$inferSelect;
+import { relations } from "drizzle-orm";
+
+export const profilesRelations = relations(profiles, ({ many }) => ({
+  documents: many(documents),
+  folders: many(folders),
+  messages: many(messages),
+  chats: many(chatParticipants),
+}));
+
+export const foldersRelations = relations(folders, ({ one, many }) => ({
+  owner: one(profiles, {
+    fields: [folders.ownerId],
+    references: [profiles.id],
+  }),
+  parent: one(folders, {
+    fields: [folders.parentId],
+    references: [folders.id],
+    relationName: "parent_folder",
+  }),
+  children: many(folders, { relationName: "parent_folder" }),
+  documents: many(documents),
+}));
+
+export const documentsRelations = relations(documents, ({ one, many }) => ({
+  owner: one(profiles, {
+    fields: [documents.ownerId],
+    references: [profiles.id],
+  }),
+  folder: one(folders, {
+    fields: [documents.folderId],
+    references: [folders.id],
+  }),
+  chats: many(chats),
+  collaborators: many(documentCollaborators),
+}));
+
+export const chatsRelations = relations(chats, ({ one, many }) => ({
+  document: one(documents, {
+    fields: [chats.documentId],
+    references: [documents.id],
+  }),
+  participants: many(chatParticipants),
+  messages: many(messages),
+}));
+
+export const chatParticipantsRelations = relations(chatParticipants, ({ one }) => ({
+  chat: one(chats, {
+    fields: [chatParticipants.chatId],
+    references: [chats.id],
+  }),
+  user: one(profiles, {
+    fields: [chatParticipants.userId],
+    references: [profiles.id],
+  }),
+}));
+
+export const messagesRelations = relations(messages, ({ one }) => ({
+  chat: one(chats, {
+    fields: [messages.chatId],
+    references: [chats.id],
+  }),
+  sender: one(profiles, {
+    fields: [messages.senderId],
+    references: [profiles.id],
+  }),
+}));
+
+export const documentCollaboratorsRelations = relations(documentCollaborators, ({ one }) => ({
+  document: one(documents, {
+    fields: [documentCollaborators.documentId],
+    references: [documents.id],
+  }),
+  user: one(profiles, {
+    fields: [documentCollaborators.userId],
+    references: [profiles.id],
+  }),
+}));
+
+export const notificationsRelations = relations(notifications, ({ one }) => ({
+  recipient: one(profiles, {
+    fields: [notifications.recipientId],
+    references: [profiles.id],
+    relationName: "recipient",
+  }),
+  sender: one(profiles, {
+    fields: [notifications.senderId],
+    references: [profiles.id],
+    relationName: "sender",
+  }),
+}));

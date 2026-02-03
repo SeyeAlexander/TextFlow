@@ -1,6 +1,6 @@
 "use client";
 
-import { FileList, FolderCard } from "@/components/dashboard/file-components";
+import { FileList, FolderCard, FileCard } from "@/components/dashboard/file-components";
 import { EmptyState } from "@/components/dashboard/empty-state";
 import { ErrorState } from "@/components/dashboard/error-state";
 import { motion } from "framer-motion";
@@ -8,11 +8,12 @@ import { MetallicFolder } from "@/components/icons/metallic-folder";
 import { DocumentIcon } from "@/components/icons/document-icon";
 import { useQuery } from "@tanstack/react-query";
 import { fetchFolderContent } from "@/actions/data";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, FolderOpen } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { TextFlowFolder } from "@/store/store";
 import DashboardLoading from "@/app/dashboard/loading";
+import { FileGridSkeleton } from "@/components/dashboard/skeletons";
 
 interface FolderViewProps {
   folderId: string;
@@ -26,10 +27,7 @@ export function FolderView({ folderId }: FolderViewProps) {
 
   const folders = data?.folders || [];
   const files = data?.files || [];
-
-  if (isLoading) {
-    return <DashboardLoading />;
-  }
+  const currentFolder = data?.currentFolder;
 
   if (error) {
     return (
@@ -46,24 +44,41 @@ export function FolderView({ folderId }: FolderViewProps) {
   return (
     <main className='my-3 mr-3 flex-1 overflow-y-auto rounded-2xl bg-white dark:bg-[#0A0A0A]'>
       <div className='p-6'>
-        {/* Header */}
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className='mb-6'
-        >
-          <div className='flex items-center gap-2 mb-2'>
-            <Link href='/dashboard'>
-              <Button variant='ghost' size='icon' className='h-8 w-8 -ml-2'>
-                <ArrowLeft className='h-4 w-4' />
-              </Button>
-            </Link>
-            <h1 className='text-xl font-semibold'>Folder Content</h1>
-          </div>
-        </motion.div>
+        {/* Header - Only show when data is loaded, or we could skeleton this too. But for now relying on isLoading block below might be cleaner, OR show minimal header. 
+            Actually, if isLoading, we display skeleton grid, but we should try to show header if we can. 
+            However, we don't have currentFolder name until data loads. So header must wait or show skeleton. */}
+        {!isLoading && currentFolder && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className='mb-6'
+          >
+            <div className='flex items-center gap-2'>
+              <div className='flex size-8 items-center justify-center rounded-lg bg-indigo-500/10'>
+                <FolderOpen className='size-4 text-indigo-500' />
+              </div>
+              <div>
+                <h1 className='text-xl font-semibold'>{currentFolder.name}</h1>
+                <p className='text-xs text-muted-foreground'>Folder content</p>
+              </div>
+            </div>
+          </motion.div>
+        )}
 
-        {/* Empty State if absolutely nothing */}
-        {folders.length === 0 && files.length === 0 ? (
+        {/* Loading State */}
+        {isLoading ? (
+          <>
+            {/* Header Skeleton */}
+            <div className='mb-6 flex items-center gap-2'>
+              <div className='h-8 w-8 rounded-lg bg-muted animate-pulse' />
+              <div>
+                <div className='h-5 w-32 bg-muted rounded animate-pulse mb-1' />
+                <div className='h-3 w-24 bg-muted rounded animate-pulse' />
+              </div>
+            </div>
+            <FileGridSkeleton />
+          </>
+        ) : folders.length === 0 && files.length === 0 ? (
           <EmptyState
             customIcon={
               <MetallicFolder size={140} className='transition-transform hover:scale-105' />
@@ -86,10 +101,14 @@ export function FolderView({ folderId }: FolderViewProps) {
                 transition={{ delay: 0.1 }}
                 className='mb-6'
               >
-                <h2 className='mb-3 text-xs font-medium text-muted-foreground'>Folders</h2>
                 <div className='grid grid-cols-2 gap-3 pb-4 md:grid-cols-4 lg:grid-cols-6'>
-                  {folders.map((folder: TextFlowFolder, index: number) => (
-                    <FolderCard key={folder.id} folder={folder} fileCount={0} index={index} />
+                  {folders.map((folder: any, index: number) => (
+                    <FolderCard
+                      key={folder.id}
+                      folder={folder}
+                      fileCount={folder.fileCount || 0}
+                      index={index}
+                    />
                   ))}
                 </div>
               </motion.div>
@@ -102,8 +121,11 @@ export function FolderView({ folderId }: FolderViewProps) {
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.2 }}
               >
-                <h2 className='mb-3 text-xs font-medium text-muted-foreground'>Files</h2>
-                <FileList files={files} />
+                <div className='grid grid-cols-2 gap-3 pb-4 md:grid-cols-4 lg:grid-cols-6'>
+                  {files.map((file: any, index: number) => (
+                    <FileCard key={file.id} file={file} index={index} />
+                  ))}
+                </div>
               </motion.div>
             )}
           </>

@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 interface DeleteFolderModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onConfirm: (deleteFiles: boolean) => void;
+  onConfirm: (deleteFiles: boolean) => void | Promise<void>;
   folderName: string;
 }
 
@@ -19,6 +19,17 @@ export function DeleteFolderModal({
   folderName,
 }: DeleteFolderModalProps) {
   const [deleteFiles, setDeleteFiles] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  const handleConfirm = async () => {
+    setLoading(true);
+    try {
+      await onConfirm(deleteFiles);
+    } finally {
+      setLoading(false);
+      onClose();
+    }
+  };
 
   return (
     <AnimatePresence>
@@ -29,7 +40,7 @@ export function DeleteFolderModal({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            onClick={onClose}
+            onClick={loading ? undefined : onClose}
             className='fixed inset-0 z-50 bg-black/60 backdrop-blur-sm'
           />
 
@@ -55,7 +66,8 @@ export function DeleteFolderModal({
               </div>
               <button
                 onClick={onClose}
-                className='rounded-full p-1 transition-colors hover:bg-black/5 dark:hover:bg-white/5'
+                disabled={loading}
+                className='rounded-full p-1 transition-colors hover:bg-black/5 dark:hover:bg-white/5 disabled:opacity-50'
               >
                 <X className='size-5 text-muted-foreground' />
               </button>
@@ -64,11 +76,12 @@ export function DeleteFolderModal({
             <div className='mt-6 flex flex-col gap-3'>
               <button
                 onClick={() => setDeleteFiles(false)}
+                disabled={loading}
                 className={`relative flex items-center gap-4 rounded-xl border p-4 text-left transition-all ${
                   !deleteFiles
                     ? "border-blue-500 bg-blue-50/50 dark:bg-blue-500/10 dark:border-blue-500"
                     : "border-border hover:bg-black/2 dark:hover:bg-white/2"
-                }`}
+                } ${loading ? "opacity-50 cursor-not-allowed" : ""}`}
               >
                 <div
                   className={`flex size-10 shrink-0 items-center justify-center rounded-lg ${!deleteFiles ? "bg-blue-100 dark:bg-blue-500/20" : "bg-black/5 dark:bg-white/5"}`}
@@ -96,11 +109,12 @@ export function DeleteFolderModal({
 
               <button
                 onClick={() => setDeleteFiles(true)}
+                disabled={loading}
                 className={`relative flex items-center gap-4 rounded-xl border p-4 text-left transition-all ${
                   deleteFiles
                     ? "border-red-500 bg-red-50/50 dark:bg-red-500/10 dark:border-red-500"
                     : "border-border hover:bg-black/2 dark:hover:bg-white/2"
-                }`}
+                } ${loading ? "opacity-50 cursor-not-allowed" : ""}`}
               >
                 <div
                   className={`flex size-10 shrink-0 items-center justify-center rounded-lg ${deleteFiles ? "bg-red-100 dark:bg-red-500/20" : "bg-black/5 dark:bg-white/5"}`}
@@ -128,15 +142,22 @@ export function DeleteFolderModal({
             </div>
 
             <div className='mt-6 flex items-center justify-end gap-3'>
-              <Button variant='outline' onClick={onClose} className='rounded-lg'>
+              <Button variant='outline' onClick={onClose} className='rounded-lg' disabled={loading}>
                 Cancel
               </Button>
               <Button
                 variant='destructive'
-                onClick={() => onConfirm(deleteFiles)}
-                className='rounded-lg bg-red-600 hover:bg-red-700 dark:bg-red-600 dark:hover:bg-red-700'
+                onClick={handleConfirm}
+                disabled={loading}
+                className='rounded-lg bg-red-600 hover:bg-red-700 dark:bg-red-600 dark:hover:bg-red-700 min-w-[120px]'
               >
-                {deleteFiles ? "Delete Everything" : "Delete Folder"}
+                {loading ? (
+                  <span className='animate-pulse'>...</span>
+                ) : deleteFiles ? (
+                  "Delete Everything"
+                ) : (
+                  "Delete Folder"
+                )}
               </Button>
             </div>
           </motion.div>

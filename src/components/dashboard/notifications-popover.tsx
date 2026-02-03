@@ -1,9 +1,11 @@
+"use client";
+
 import { motion } from "framer-motion";
 import { Bell, Check, Inbox, MessageSquare, FileText, X } from "lucide-react";
-import { useState } from "react";
 import { formatRelativeTime } from "@/lib/utils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getNotifications, markAsRead, markAllAsRead } from "@/actions/notifications";
+import { toast } from "sonner";
 
 interface NotificationsPopoverProps {
   isOpen: boolean;
@@ -13,27 +15,43 @@ interface NotificationsPopoverProps {
 export function NotificationsPopover({ isOpen, onClose }: NotificationsPopoverProps) {
   const queryClient = useQueryClient();
 
+  // Fetch notifications
   const { data: notifications = [] } = useQuery({
     queryKey: ["notifications"],
     queryFn: async () => {
       const data = await getNotifications();
-      return data.map((n) => ({
+      // Map server data to UI format
+      return data.map((n: any) => ({
         id: n.id,
         type: n.type,
-        user: { name: n.senderName || "Unknown", avatar: n.senderAvatar || "" },
-        content: n.type === "invite" ? "shared a document" : "interacted with",
-        target: (n.data as any)?.documentName || "a document",
+        user: {
+          name: n.senderName || "Unknown User",
+          avatar:
+            n.senderAvatar ||
+            `https://api.dicebear.com/7.x/avataaars/svg?seed=${n.senderName || "User"}`,
+        },
+        // content text based on type
+        content:
+          n.type === "mention"
+            ? "mentioned you in"
+            : n.type === "comment"
+              ? "commented on"
+              : "shared a document",
+        target: n.data?.documentName || "Document",
         time: n.createdAt,
         read: n.isRead,
       }));
     },
-    enabled: isOpen,
+    // Only fetch when open or initially to show badges else where
+    // For now standard fetch
   });
 
   const markReadMutation = useMutation({
     mutationFn: markAsRead,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["notifications"] });
+      // Also invalidate sidebar to update badge if we were passing it there
+      queryClient.invalidateQueries({ queryKey: ["sidebar"] });
     },
   });
 
@@ -41,16 +59,9 @@ export function NotificationsPopover({ isOpen, onClose }: NotificationsPopoverPr
     mutationFn: markAllAsRead,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["notifications"] });
+      queryClient.invalidateQueries({ queryKey: ["sidebar"] });
     },
   });
-
-  const markAllRead = () => {
-    markAllReadMutation.mutate();
-  };
-
-  const markRead = (id: string) => {
-    markReadMutation.mutate(id);
-  };
 
   if (!isOpen) return null;
 
@@ -68,14 +79,15 @@ export function NotificationsPopover({ isOpen, onClose }: NotificationsPopoverPr
             <Inbox className='size-4 text-blue-500' />
             <h3 className='text-sm font-medium'>Inbox</h3>
             <span className='flex size-5 items-center justify-center rounded-full bg-blue-500/10 text-[10px] font-medium text-blue-500'>
-              {notifications.filter((n) => !n.read).length}
+              {notifications.filter((n: any) => !n.read).length}
             </span>
           </div>
           <div className='flex items-center gap-1'>
             <button
-              onClick={markAllRead}
+              onClick={() => markAllReadMutation.mutate()}
               className='p-1 rounded-lg text-neutral-500 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800'
               title='Mark all as read'
+              disabled={markAllReadMutation.isPending}
             >
               <Check className='size-4' />
             </button>
@@ -96,10 +108,10 @@ export function NotificationsPopover({ isOpen, onClose }: NotificationsPopoverPr
             </div>
           ) : (
             <div className='divide-y divide-neutral-100 dark:divide-neutral-800'>
-              {notifications.map((notification) => (
+              {notifications.map((notification: any) => (
                 <button
                   key={notification.id}
-                  onClick={() => markRead(notification.id)}
+                  onClick={() => !notification.read && markReadMutation.mutate(notification.id)}
                   className={`w-full text-left p-3 transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50 flex gap-3 ${
                     !notification.read ? "bg-blue-50/50 dark:bg-blue-500/5" : ""
                   }`}
@@ -125,11 +137,11 @@ export function NotificationsPopover({ isOpen, onClose }: NotificationsPopoverPr
                       <span className='font-medium text-blue-500'>{notification.target}</span>
                     </p>
                     <div className='flex items-center gap-1 mt-1'>
-                      {notification.type === "invite" && (
-                        <FileText className='size-3 text-neutral-400' />
+                      {notification.type === "mention" && (
+                        <MessageSquare className='size-3 text-neutral-400' />
                       )}
-                      {notification.type === "limit" && (
-                        <Bell className='size-3 text-neutral-400' />
+                      {notification.type === "share" && (
+                        <FileText className='size-3 text-neutral-400' />
                       )}
                       <span className='text-[10px] text-neutral-400'>
                         {formatRelativeTime(notification.time)}

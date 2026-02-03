@@ -11,6 +11,8 @@ import { DocumentIcon } from "@/components/icons/document-icon";
 import { useQuery } from "@tanstack/react-query";
 import { fetchStarredFiles } from "@/actions/data";
 
+import { FileGridSkeleton } from "@/components/dashboard/skeletons";
+
 export default function StarredPage() {
   const { setView } = useTextFlowStore();
 
@@ -44,7 +46,9 @@ export default function StarredPage() {
         </motion.div>
 
         {/* Files Grid */}
-        {starredFiles.length === 0 ? (
+        {isLoading ? (
+          <FileGridSkeleton />
+        ) : starredFiles.length === 0 ? (
           <EmptyState
             customIcon={
               <DocumentIcon size={100} className='transition-transform hover:scale-105' />

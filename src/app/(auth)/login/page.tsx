@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { login } from "@/actions/auth";
 import { loginSchema, LoginValues } from "@/lib/schemas";
 import { toast } from "sonner"; // Assuming sonner is available (package.json has it)
+import { createClient } from "@/utils/supabase/client";
 
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
@@ -34,6 +35,16 @@ export default function LoginPage() {
       if (result?.error) {
         toast.error(result.error);
       }
+    });
+  };
+
+  const handleGoogleLogin = async () => {
+    const supabase = createClient();
+    await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+      },
     });
   };
 
@@ -86,7 +97,7 @@ export default function LoginPage() {
               onClick={() => setShowPassword(!showPassword)}
               className='absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground'
             >
-              {showPassword ? <EyeOff className='size-4' /> : <Eye className='size-4' />}
+              {showPassword ? <Eye className='size-4' /> : <EyeOff className='size-4' />}
             </button>
           </div>
           {errors.password && (
@@ -121,7 +132,12 @@ export default function LoginPage() {
       </div>
 
       {/* Google sign in */}
-      <Button variant='outline' className='h-11 w-full rounded-lg' type='button'>
+      <Button
+        variant='outline'
+        className='h-11 w-full rounded-lg'
+        type='button'
+        onClick={handleGoogleLogin}
+      >
         <svg className='mr-2 size-4' viewBox='0 0 24 24'>
           <path
             fill='currentColor'

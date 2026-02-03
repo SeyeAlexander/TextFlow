@@ -4,6 +4,9 @@ import AI_Prompt from "@/components/kokonutui/ai-prompt";
 import { FileList, FolderCard } from "@/components/dashboard/file-components";
 import { EmptyState } from "@/components/dashboard/empty-state";
 import { motion } from "framer-motion";
+import { FolderPlus } from "lucide-react";
+import { CreateFolderModal } from "./create-folder-modal";
+import { useState } from "react";
 import { MetallicFolder } from "@/components/icons/metallic-folder";
 import { DocumentIcon } from "@/components/icons/document-icon";
 import { useQuery } from "@tanstack/react-query";
@@ -16,6 +19,7 @@ export function DashboardView() {
     queryKey: ["dashboard", null], // null = root folder
     queryFn: () => fetchFolderContent(null),
   });
+  const [createFolderOpen, setCreateFolderOpen] = useState(false);
 
   const folders = data?.folders || [];
   const files = data?.files || [];
@@ -31,10 +35,21 @@ export function DashboardView() {
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
-          className='mb-2'
+          className='mb-2 flex items-center justify-between'
         >
-          <h1 className='text-xl font-semibold'>All Files</h1>
-          <p className='text-xs text-muted-foreground'>Manage all your documents and folders</p>
+          <div>
+            <h1 className='text-xl font-semibold'>All Files</h1>
+            <p className='text-xs text-muted-foreground'>Manage all your documents and folders</p>
+          </div>
+          {folders.length > 0 && (
+            <button
+              onClick={() => setCreateFolderOpen(true)}
+              className='flex items-center gap-1.5 rounded-lg bg-black/5 px-3 py-1.5 text-xs font-medium transition-colors hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10'
+            >
+              <FolderPlus className='size-3.5' />
+              New Folder
+            </button>
+          )}
         </motion.div>
 
         {/* AI Input - kokonutui component */}
@@ -56,7 +71,7 @@ export function DashboardView() {
                 <FolderCard
                   key={folder.id}
                   folder={folder}
-                  fileCount={folder.fileCount ?? 0}
+                  fileCount={folder.fileCount || 0}
                   index={index}
                 />
               ))}
@@ -70,10 +85,7 @@ export function DashboardView() {
             title='No folders yet'
             description='Create your first folder to get started.'
             actionLabel='New Folder'
-            onAction={() => {
-              const btn = document.querySelector('button[aria-label="New Folder"]');
-              if (btn && btn instanceof HTMLElement) btn.click();
-            }}
+            onAction={() => setCreateFolderOpen(true)}
           />
         )}
 
@@ -98,6 +110,7 @@ export function DashboardView() {
           />
         )}
       </div>
+      <CreateFolderModal isOpen={createFolderOpen} onClose={() => setCreateFolderOpen(false)} />
     </main>
   );
 }

@@ -26,6 +26,7 @@ import { formatRelativeTime } from "@/lib/utils";
 import { MetallicFolder } from "@/components/icons/metallic-folder";
 import { DocumentIcon } from "@/components/icons/document-icon";
 import { DeleteFolderModal } from "./delete-folder-modal";
+import { DeleteFileModal } from "./delete-file-modal";
 
 // Get icon component based on file type
 function FileIcon({ type, className }: { type: TextFlowFile["type"]; className?: string }) {
@@ -122,6 +123,7 @@ function FileContextMenu({
   const queryClient = useQueryClient();
   const [isRenaming, setIsRenaming] = useState(false);
   const [showFolderMenu, setShowFolderMenu] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [newName, setNewName] = useState(file.name);
 
   const starMutation = useMutation({
@@ -238,7 +240,10 @@ function FileContextMenu({
             <div className='my-1 h-px bg-black/5 dark:bg-white/5' />
             <button
               onClick={() => {
-                if (confirm("Delete file?")) deleteMutation.mutate();
+                // Close menu implies we shouldn't interact with it anymore,
+                // BUT we need to keep the modal open.
+                // We'll handle this by rendering the modal OUTSIDE this motion.div or just overlaying.
+                setShowDeleteModal(true);
               }}
               className='flex w-full items-center gap-2 px-3 py-1.5 text-[13px] text-red-500 transition-colors hover:bg-red-500/10'
             >
@@ -261,6 +266,16 @@ function FileContextMenu({
           />
         )}
       </AnimatePresence>
+
+      <DeleteFileModal
+        isOpen={showDeleteModal}
+        onClose={() => {
+          setShowDeleteModal(false);
+          onClose(); // Close the menu too when modal closes
+        }}
+        onConfirm={() => deleteMutation.mutate()}
+        fileName={file.name}
+      />
     </>
   );
 }

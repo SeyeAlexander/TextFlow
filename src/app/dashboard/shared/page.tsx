@@ -11,6 +11,8 @@ import { DocumentIcon } from "@/components/icons/document-icon";
 import { useQuery } from "@tanstack/react-query";
 import { fetchSharedFiles } from "@/actions/data";
 
+import { FileGridSkeleton } from "@/components/dashboard/skeletons";
+
 export default function SharedPage() {
   const { setView } = useTextFlowStore();
 
@@ -44,7 +46,9 @@ export default function SharedPage() {
         </motion.div>
 
         {/* Files Grid */}
-        {sharedFiles.length === 0 ? (
+        {isLoading ? (
+          <FileGridSkeleton />
+        ) : sharedFiles.length === 0 ? (
           <EmptyState
             customIcon={
               <DocumentIcon size={100} className='transition-transform hover:scale-105' />

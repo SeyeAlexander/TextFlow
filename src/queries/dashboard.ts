@@ -1,6 +1,6 @@
 import { createClient } from "@/utils/supabase/server";
 import { db } from "@/db";
-import { folders, documents, documentCollaborators } from "@/db/schema";
+import { folders, documents, documentCollaborators, notifications } from "@/db/schema";
 import { eq, and, isNull, desc, or, exists, ilike, count } from "drizzle-orm";
 import { redirect } from "next/navigation";
 
@@ -11,13 +11,22 @@ export async function getDashboardData(folderId: string | null = null) {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect("/login");
+    return { folders: [], files: [] }; // Return empty instead of redirect to avoid 500 on fetch
   }
 
-  // Parallel fetch for folders and files
-  const [userFolders, userFiles] = await Promise.all([
-    db
-      .select()
+  let userFolders: any[] = [];
+  let userFiles: any[] = [];
+
+  try {
+    // Simplified fetch for folders
+    userFolders = await db
+      .select({
+        id: folders.id,
+        name: folders.name,
+        parentId: folders.parentId,
+        createdAt: folders.createdAt,
+        ownerId: folders.ownerId,
+      })
       .from(folders)
       .where(
         and(
@@ -25,59 +34,88 @@ export async function getDashboardData(folderId: string | null = null) {
           folderId ? eq(folders.parentId, folderId) : isNull(folders.parentId),
         ),
       )
-      .orderBy(desc(folders.createdAt)),
-    db
+      .orderBy(desc(folders.createdAt));
+
+    // Re-enable files fetch
+    userFiles = await db
       .select()
       .from(documents)
       .where(
-        and(
-          eq(documents.ownerId, user.id),
-          folderId ? eq(documents.folderId, folderId) : isNull(documents.folderId),
-        ),
+        folderId
+          ? and(eq(documents.ownerId, user.id), eq(documents.folderId, folderId))
+          : eq(documents.ownerId, user.id),
       )
-      .orderBy(desc(documents.updatedAt)),
-  ]);
+      .orderBy(desc(documents.updatedAt));
+  } catch (error) {
+    console.error("Dashboard fetch error:", error);
+    // Return empty but valid structure so UI doesn't crash 500
+    return { folders: [], files: [] };
+  }
 
-  // Fetch file counts for all folders owned by the user
-  const folderCounts = await db
-    .select({
-      folderId: documents.folderId,
-      count: count(documents.id),
-    })
-    .from(documents)
-    .where(eq(documents.ownerId, user.id))
-    .groupBy(documents.folderId);
+  // Fetch file counts
+  try {
+    const folderCounts = await db
+      .select({
+        folderId: documents.folderId,
+        count: count(documents.id),
+      })
+      .from(documents)
+      .where(eq(documents.ownerId, user.id))
+      .groupBy(documents.folderId);
 
-  const countMap = new Map(folderCounts.map((c) => [c.folderId, Number(c.count)]));
+    const countMap = new Map(folderCounts.map((c) => [c.folderId, Number(c.count)]));
 
-  // Transform data to match UI types
-  const formattedFolders = userFolders.map((f) => ({
-    id: f.id,
-    name: f.name,
-    parentId: f.parentId,
-    isOpen: false, // Default state
-    createdAt: f.createdAt,
-    fileCount: countMap.get(f.id) || 0,
-  }));
+    // Transform data
+    const formattedFolders = userFolders.map((f) => ({
+      id: f.id,
+      name: f.name,
+      parentId: f.parentId,
+      isOpen: false,
+      createdAt: f.createdAt,
+      fileCount: countMap.get(f.id) || 0,
+    }));
 
-  const formattedFiles = userFiles.map((d) => ({
-    id: d.id,
-    name: d.name,
-    type: "document" as const,
-    size: "0 KB", // Size not tracked in DB yet
-    content: JSON.stringify(d.content),
-    folderId: d.folderId,
-    starred: d.isStarred || false,
-    shared: d.isPublic || false,
-    updatedAt: d.updatedAt,
-    createdAt: d.createdAt,
-    ownerId: d.ownerId,
-  }));
+    const formattedFiles = userFiles.map((d) => ({
+      id: d.id,
+      name: d.name,
+      type: "document" as const,
+      size: "0 KB",
+      content: JSON.stringify(d.content),
+      folderId: d.folderId,
+      starred: d.isStarred || false,
+      shared: d.isPublic || false,
+      updatedAt: d.updatedAt,
+      createdAt: d.createdAt,
+      ownerId: d.ownerId,
+    }));
 
-  return {
-    folders: formattedFolders,
-    files: formattedFiles,
-  };
+    // Fetch current folder details if viewing a specific folder
+    let currentFolder = null;
+    if (folderId) {
+      const [folder] = await db
+        .select()
+        .from(folders)
+        .where(and(eq(folders.id, folderId), eq(folders.ownerId, user.id)));
+
+      if (folder) {
+        currentFolder = {
+          id: folder.id,
+          name: folder.name,
+          parentId: folder.parentId,
+          createdAt: folder.createdAt,
+        };
+      }
+    }
+
+    return {
+      folders: formattedFolders,
+      files: formattedFiles,
+      currentFolder,
+    };
+  } catch (error) {
+    console.error("Error processing dashboard data", error);
+    return { folders: [], files: [], currentFolder: null };
+  }
 }
 
 export async function getRecentFiles() {
@@ -188,7 +226,13 @@ export async function getSidebarData() {
 
   // Fetch ALL folders for the tree structure (lightweight)
   const allFolders = await db
-    .select()
+    .select({
+      id: folders.id,
+      name: folders.name,
+      parentId: folders.parentId,
+      createdAt: folders.createdAt,
+      ownerId: folders.ownerId,
+    })
     .from(folders)
     .where(eq(folders.ownerId, user.id))
     .orderBy(desc(folders.createdAt));
@@ -216,6 +260,24 @@ export async function getSidebarData() {
     .orderBy(desc(documents.updatedAt)) // Use updatedAt for "recent"
     .limit(20); // Increased limit due to mixed types
 
+  // Fetch file counts for sidebar
+  const folderCounts = await db
+    .select({
+      folderId: documents.folderId,
+      count: count(documents.id),
+    })
+    .from(documents)
+    .where(eq(documents.ownerId, user.id))
+    .groupBy(documents.folderId);
+
+  const countMap = new Map(folderCounts.map((c) => [c.folderId, Number(c.count)]));
+
+  // Fetch unread notifications count
+  const [{ count: unreadCount }] = await db
+    .select({ count: count(notifications.id) })
+    .from(notifications)
+    .where(and(eq(notifications.recipientId, user.id), eq(notifications.isRead, false)));
+
   // Transform
   return {
     folders: allFolders.map((f) => ({
@@ -224,6 +286,7 @@ export async function getSidebarData() {
       parentId: f.parentId,
       isOpen: false,
       createdAt: f.createdAt,
+      fileCount: countMap.get(f.id) || 0,
     })),
     files: recentFiles.map((d) => ({
       id: d.id,
@@ -236,6 +299,7 @@ export async function getSidebarData() {
       createdAt: d.createdAt,
       updatedAt: d.updatedAt,
     })),
+    unreadCount: Number(unreadCount),
   };
 }
 
@@ -264,10 +328,18 @@ export async function getDocumentById(id: string) {
     if (!isCollaborator) return null;
   }
 
+  // Check if document has any collaborators to determine 'shared' status
+  const [collaboratorCheck] = await db
+    .select({ count: count(documentCollaborators.userId) })
+    .from(documentCollaborators)
+    .where(eq(documentCollaborators.documentId, id));
+
+  const isShared = doc.isPublic || collaboratorCheck?.count > 0;
+
   return {
     ...doc,
     starred: doc.isStarred || false,
-    shared: doc.isPublic || false,
+    shared: isShared,
     content: doc.content as any,
   };
 }

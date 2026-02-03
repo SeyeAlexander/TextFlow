@@ -1,0 +1,16 @@
+# Project Rules
+
+## UI Preservation protocol
+- **STRICTLY FORBIDDEN**: Do not change ANY UI element without express, written permission from the user.
+- This applies to all visual properties, including but not limited to:
+  - Colors (backgrounds, text, borders)
+  - Typography (font sizes, weights, families)
+  - Spacing (margins, paddings, layout)
+  - Components (buttons, inputs, cards)
+  - Animations and transitions
+- **Implementation Constraint**: If a backend or logic implementation requires a UI modification (e.g., adding a loading state, error message), you must **STOP and ASK** for permission before proceeding with that specific UI change.
+
+## Development Standards
+- **Package Manager**: ALL commands must use `pnpm`.
+  - Use `pnpm install`, `pnpm run build`, `pnpm add`, etc.
+  - Do not use `npm` or `yarn` unless explicitly instructed to debug a specific issue with them.

@@ -184,6 +184,8 @@ export function SlashCommandPlugin() {
         }
         selectedOption.onSelect(editor);
         closeMenu();
+        // Ensure query string is reset to allow reopening
+        setQueryString(null);
       });
     },
     [editor],

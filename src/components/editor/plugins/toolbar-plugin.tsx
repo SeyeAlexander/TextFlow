@@ -42,11 +42,6 @@ export function ToolbarPlugin({ documentId }: { documentId?: string }) {
 
   return (
     <div className='absolute top-4 right-4 z-20 flex items-center gap-1.5'>
-      {documentId && (
-        <div className='flex items-center rounded-lg border border-black/5 bg-white shadow-sm dark:border-white/5 dark:bg-[#1a1a1a]'>
-          <ShareDialog documentId={documentId} documentName='Document' />
-        </div>
-      )}
       <div className='flex items-center gap-1 rounded-lg border border-black/5 bg-white p-1 shadow-sm dark:border-white/5 dark:bg-[#1a1a1a]'>
         <button
           onClick={() => {

@@ -27,36 +27,16 @@ import { CodeHighlightPlugin } from "./plugins/code-highlight-plugin";
 import { AutoNamePlugin } from "./plugins/auto-name-plugin";
 import { ToolbarPlugin } from "./plugins/toolbar-plugin";
 
-// Plugin to handle initial HTML content loading
-function LoadHtmlPlugin({ html }: { html: string }) {
-  const [editor] = useLexicalComposerContext();
-
-  useEffect(() => {
-    if (!html) return;
-
-    editor.update(() => {
-      const root = $getRoot();
-      if (root.getTextContent() === "") {
-        const parser = new DOMParser();
-        const dom = parser.parseFromString(html, "text/html");
-        const nodes = $generateNodesFromDOM(editor, dom);
-        $insertNodes(nodes);
-      }
-    });
-  }, [editor, html]);
-
-  return null;
-}
-
-// Plugin to capture changes and export HTML
-function OnChangePlugin({ onChange }: { onChange: (html: string) => void }) {
+// Plugin to capture changes and export JSON
+function OnChangePlugin({ onChange }: { onChange: (json: string) => void }) {
   const [editor] = useLexicalComposerContext();
 
   useEffect(() => {
     return editor.registerUpdateListener(({ editorState }) => {
       editorState.read(() => {
-        const html = $generateHtmlFromNodes(editor, null);
-        onChange(html);
+        // Serialize to JSON string for storage
+        const jsonString = JSON.stringify(editorState.toJSON());
+        onChange(jsonString);
       });
     });
   }, [editor, onChange]);
@@ -66,7 +46,7 @@ function OnChangePlugin({ onChange }: { onChange: (html: string) => void }) {
 
 interface EditorProps {
   initialContent?: string;
-  onChange?: (html: string) => void;
+  onChange?: (json: string) => void;
   readOnly?: boolean;
   documentId?: string;
 }
@@ -86,8 +66,30 @@ export function Editor({ initialContent, onChange, readOnly = false, documentId 
   const initialConfig = {
     namespace: "TextFlowEditor",
     theme: editorTheme,
+    // Initialize with JSON content ONLY if it is valid JSON string
+    editorState: (editor: any) => {
+      if (initialContent) {
+        try {
+          // Check if it's valid JSON
+          const parsed = JSON.parse(initialContent);
+          // console.log("Initializing Editor with:", parsed); // Debug
+
+          if (parsed.root) {
+            // Fix: parseEditorState expects the Object, not string
+            const state = editor.parseEditorState(parsed);
+            return state;
+          } else {
+            console.warn("Parsed content missing root:", parsed);
+          }
+        } catch (e) {
+          console.error("Failed to parse initialContent:", e);
+          // Not JSON, ignore and start empty
+          return;
+        }
+      }
+    },
     onError: (error: Error) => {
-      console.error(error);
+      console.error("Lexical Error:", error);
     },
     nodes: [
       HeadingNode,
@@ -141,7 +143,6 @@ export function Editor({ initialContent, onChange, readOnly = false, documentId 
 
           {/* Custom Plugins */}
           {documentId && <AutoNamePlugin documentId={documentId} />}
-          {initialContent && <LoadHtmlPlugin html={initialContent} />}
           {onChange && <OnChangePlugin onChange={onChange} />}
         </div>
       </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -232,6 +232,8 @@ export function DocumentView({ fileId }: { fileId: string }) {
   const [shareOpen, setShareOpen] = useState(false);
   const [documentTitle, setDocumentTitle] = useState("");
 
+  const isDeletedRef = useRef(false);
+
   // Initialize title
   useEffect(() => {
     if (file) {
@@ -239,41 +241,67 @@ export function DocumentView({ fileId }: { fileId: string }) {
     }
   }, [file]);
 
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const handleContentChange = useCallback(
     (content: string) => {
+      // If deleted, do not save
+      if (isDeletedRef.current) return;
+
       setIsSaving(true);
-      const timeoutId = setTimeout(async () => {
+
+      // Clear existing timeout
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+
+      // Set new timeout
+      timeoutRef.current = setTimeout(async () => {
+        // Double check before network call
+        if (isDeletedRef.current) return;
+
         try {
           await saveMutation.mutateAsync({ id: fileId, content });
+        } catch (error: any) {
+          if (error.message.includes("Unauthorized")) {
+            toast.error("Session expired. Please log in again.");
+            // Optional: redirect to login or show a modal
+            // router.push("/login");
+          } else {
+            toast.error("Failed to save changes");
+          }
         } finally {
           setIsSaving(false);
+          timeoutRef.current = null;
         }
       }, 2000);
-
-      return () => {
-        clearTimeout(timeoutId);
-        // We don't force save on every stroke's cleanup,
-        // but the 2s debounce is generally safe for web.
-        // For a more robust solution, we'd need to track if content is dirty.
-      };
     },
     [fileId, saveMutation],
   );
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
+  }, []);
+
+  // Redirect if document not found (deleted)
+  useEffect(() => {
+    if (!isLoading && !file) {
+      router.push("/dashboard");
+    }
+  }, [file, isLoading, router]);
 
   if (isLoading) {
     return <DocumentLoading />;
   }
 
   if (!file) {
-    return (
-      <main className='my-3 mr-3 flex flex-1 items-center justify-center rounded-2xl bg-[#FFF] dark:bg-[#0A0A0A]'>
-        <ErrorState
-          title='Document not found'
-          description='The document you are looking for does not exist or has been deleted.'
-          className='border-none bg-transparent'
-        />
-      </main>
-    );
+    // Return null while redirecting to avoid flash of error state
+    return null;
   }
 
   return (
@@ -391,7 +419,16 @@ export function DocumentView({ fileId }: { fileId: string }) {
             >
               {/* Lexical Editor */}
               <Editor
-                initialContent={file.content}
+                key={
+                  fileId +
+                  (file.content &&
+                  (typeof file.content === "string" ? file.content !== "{}" : file.content.root)
+                    ? "-loaded"
+                    : "-empty")
+                }
+                initialContent={
+                  typeof file.content === "string" ? file.content : JSON.stringify(file.content)
+                }
                 onChange={handleContentChange}
                 documentId={fileId}
               />

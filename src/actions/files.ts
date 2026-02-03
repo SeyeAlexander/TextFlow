@@ -19,19 +19,24 @@ export async function createFile(formData: FormData) {
 
   const name = formData.get("name") as string;
   const folderId = formData.get("folderId") as string | null;
+  const id = formData.get("id") as string | null;
 
   if (!name) return { error: "Name is required" };
 
   try {
-    const [newDoc] = await db
-      .insert(documents)
-      .values({
-        ownerId: user.id,
-        name,
-        folderId: folderId || null,
-        content: {}, // Empty Lexical state
-      })
-      .returning({ id: documents.id });
+    const values: any = {
+      ownerId: user.id,
+      name,
+      folderId: folderId || null,
+      content: {}, // Empty Lexical state
+    };
+
+    // Use provided ID if available
+    if (id) {
+      values.id = id;
+    }
+
+    const [newDoc] = await db.insert(documents).values(values).returning({ id: documents.id });
 
     revalidatePath("/dashboard");
     return { success: true, id: newDoc.id };
@@ -51,19 +56,28 @@ export async function renameFile(formData: FormData) {
 
   const id = formData.get("id") as string;
   const name = formData.get("name") as string;
+  const folderId = formData.get("folderId") as string | null;
 
-  if (!id || !name) return { error: "ID and Name required" };
+  if (!id) return { error: "ID required" };
+  // If we are renaming, we need a name. If moving, we might not need a name (use current).
+  // But to keep it simple, we allow either or both.
 
   try {
+    const updateData: any = {};
+    if (name) updateData.name = name;
+    if (formData.has("folderId")) updateData.folderId = folderId || null; // Allow null to move to root
+
+    if (Object.keys(updateData).length === 0) return { error: "No changes provided" };
+
     await db
       .update(documents)
-      .set({ name })
+      .set(updateData)
       .where(and(eq(documents.id, id), eq(documents.ownerId, user.id)));
 
     revalidatePath("/dashboard");
     return { success: true };
   } catch (error) {
-    return { error: "Failed to rename file" };
+    return { error: "Failed to update file" };
   }
 }
 

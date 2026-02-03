@@ -11,6 +11,8 @@ import { DocumentIcon } from "@/components/icons/document-icon";
 import { useQuery } from "@tanstack/react-query";
 import { fetchRecentFiles } from "@/actions/data";
 
+import { FileGridSkeleton } from "@/components/dashboard/skeletons";
+
 export default function RecentPage() {
   const { setView } = useTextFlowStore();
 
@@ -44,7 +46,9 @@ export default function RecentPage() {
         </motion.div>
 
         {/* Files Grid */}
-        {recentFiles.length === 0 ? (
+        {isLoading ? (
+          <FileGridSkeleton />
+        ) : recentFiles.length === 0 ? (
           <EmptyState
             customIcon={
               <DocumentIcon size={100} className='transition-transform hover:scale-105' />
