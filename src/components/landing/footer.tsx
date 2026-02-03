@@ -33,9 +33,7 @@ export function Footer() {
       className='border-t border-border bg-background dark:bg-[#1a1a1a] px-6 py-12'
     >
       <div className='mx-auto max-w-6xl'>
-        {/* Main Footer */}
         <div className='grid gap-8 sm:grid-cols-2 lg:grid-cols-5'>
-          {/* Brand */}
           <div className='lg:col-span-2'>
             <Link href='/' className='inline-block'>
               <span className='font-mono text-lg font-bold tracking-tight'>TEXTFLOW</span>
@@ -63,7 +61,6 @@ export function Footer() {
             </div>
           </div>
 
-          {/* Product Links */}
           <div>
             <h4 className='mb-3 font-mono text-xs uppercase tracking-wider text-muted-foreground'>
               Product
@@ -82,7 +79,6 @@ export function Footer() {
             </ul>
           </div>
 
-          {/* Company Links */}
           <div>
             <h4 className='mb-3 font-mono text-xs uppercase tracking-wider text-muted-foreground'>
               Company
@@ -101,7 +97,6 @@ export function Footer() {
             </ul>
           </div>
 
-          {/* Legal Links */}
           <div>
             <h4 className='mb-3 font-mono text-xs uppercase tracking-wider text-muted-foreground'>
               Legal
@@ -121,7 +116,6 @@ export function Footer() {
           </div>
         </div>
 
-        {/* Bottom Bar */}
         <div className='mt-12 flex flex-col items-center justify-between gap-4 border-t border-border pt-8 sm:flex-row'>
           <p className='text-sm text-muted-foreground'>© 2026 TextFlow. All rights reserved.</p>
           <div className='flex items-center gap-4 font-mono text-xs text-muted-foreground'>

@@ -53,15 +53,23 @@ export function SettingsModal() {
 
               {/* User Info */}
               <div className='flex items-center gap-3 border-b border-black/5 px-4 py-3 dark:border-white/5'>
-                <div className='flex size-10 items-center justify-center rounded-full bg-linear-to-br from-purple-500 to-blue-500 overflow-hidden relative'>
+                <div className='flex size-10 items-center justify-center rounded-full overflow-hidden relative'>
                   {user?.user_metadata?.avatar_url ? (
-                    <img
-                      src={user.user_metadata.avatar_url}
-                      alt={user.user_metadata.full_name || "User"}
-                      className='size-full object-cover'
-                    />
+                    user.user_metadata.avatar_url.startsWith("http") ? (
+                      <img
+                        src={user.user_metadata.avatar_url}
+                        alt={user.user_metadata.full_name || "User"}
+                        className='size-full object-cover'
+                      />
+                    ) : (
+                      <div
+                        className={`size-full rounded-full bg-linear-to-br ${user.user_metadata.avatar_url}`}
+                      />
+                    )
                   ) : (
-                    <User className='size-5 text-white' />
+                    <div className='flex size-full items-center justify-center rounded-full bg-linear-to-br from-purple-500 to-blue-500'>
+                      <User className='size-5 text-white' />
+                    </div>
                   )}
                 </div>
                 <div className='min-w-0 flex-1'>

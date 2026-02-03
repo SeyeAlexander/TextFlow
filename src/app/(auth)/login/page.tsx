@@ -107,7 +107,7 @@ export default function LoginPage() {
 
         <Button
           type='submit'
-          className='h-11 w-full rounded-lg bg-primary text-primary-foreground hover:bg-primary/80 active:scale-95'
+          className='h-11 w-full rounded-lg bg-blue-500 text-white hover:bg-blue-600 active:scale-95'
           disabled={isPending}
         >
           {isPending ? (
@@ -122,17 +122,17 @@ export default function LoginPage() {
       </form>
 
       {/* Divider */}
-      <div className='relative my-6'>
+      {/* <div className='relative my-6'>
         <div className='absolute inset-0 flex items-center'>
           <div className='w-full border-t' />
         </div>
         <div className='relative flex justify-center text-xs uppercase'>
           <span className='bg-background px-2 text-muted-foreground dark:bg-[#111]'>Or</span>
         </div>
-      </div>
+      </div> */}
 
       {/* Google sign in */}
-      <Button
+      {/* <Button
         variant='outline'
         className='h-11 w-full rounded-lg'
         type='button'
@@ -157,12 +157,12 @@ export default function LoginPage() {
           />
         </svg>
         Continue with Google
-      </Button>
+      </Button> */}
 
       {/* Sign up link */}
       <p className='mt-6 text-center text-sm text-muted-foreground'>
         Don&apos;t have an account?{" "}
-        <Link href='/signup' className='font-medium text-orange hover:underline'>
+        <Link href='/signup' className='font-medium text-blue-500 hover:underline'>
           Sign up
         </Link>
       </p>

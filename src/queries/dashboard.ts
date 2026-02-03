@@ -43,7 +43,20 @@ export async function getDashboardData(folderId: string | null = null) {
       .where(
         folderId
           ? and(eq(documents.ownerId, user.id), eq(documents.folderId, folderId))
-          : eq(documents.ownerId, user.id),
+          : or(
+              eq(documents.ownerId, user.id),
+              exists(
+                db
+                  .select()
+                  .from(documentCollaborators)
+                  .where(
+                    and(
+                      eq(documentCollaborators.documentId, documents.id),
+                      eq(documentCollaborators.userId, user.id),
+                    ),
+                  ),
+              ),
+            ),
       )
       .orderBy(desc(documents.updatedAt));
   } catch (error) {

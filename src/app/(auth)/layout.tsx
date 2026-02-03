@@ -3,6 +3,7 @@
 import { ThemeToggle } from "@/components/shared/theme-toggle";
 import { DotLogo } from "@/components/shared/dot-logo";
 import { useEffect, useRef } from "react";
+import type { CSSProperties } from "react";
 import Link from "next/link";
 
 // Animated Dot Globe - a sphere made of dots that rotates
@@ -86,11 +87,12 @@ function DotGlobe() {
         const size = 1 + depth * 2;
         const opacity = p.baseOpacity * (0.15 + depth * 0.85);
 
-        // Orange tint for front-facing dots
-        const orangeAmount = Math.max(0, depth - 0.5) * 2;
-        const r = Math.round(255 * orangeAmount + 255 * (1 - orangeAmount));
-        const g = Math.round(100 * orangeAmount + 255 * (1 - orangeAmount));
-        const b = Math.round(50 * orangeAmount + 255 * (1 - orangeAmount));
+        // Blue tint for front-facing dots
+        const blueAmount = Math.max(0, depth - 0.5) * 2;
+        const accent = { r: 56, g: 189, b: 248 }; // sky-400
+        const r = Math.round(accent.r * blueAmount + 255 * (1 - blueAmount));
+        const g = Math.round(accent.g * blueAmount + 255 * (1 - blueAmount));
+        const b = Math.round(accent.b * blueAmount + 255 * (1 - blueAmount));
 
         ctx.beginPath();
         ctx.arc(screenX, screenY, size, 0, Math.PI * 2);
@@ -109,8 +111,8 @@ function DotGlobe() {
             screenY,
             size * 3,
           );
-          gradient.addColorStop(0, `rgba(216, 67, 21, ${opacity * 0.3})`);
-          gradient.addColorStop(1, "rgba(216, 67, 21, 0)");
+          gradient.addColorStop(0, `rgba(56, 189, 248, ${opacity * 0.3})`);
+          gradient.addColorStop(1, "rgba(56, 189, 248, 0)");
           ctx.fillStyle = gradient;
           ctx.fill();
         }
@@ -150,17 +152,24 @@ function DotGlobe() {
       </div>
 
       {/* Corner accents */}
-      <div className='absolute left-8 top-8 h-12 w-px bg-linear-to-b from-deep-orange/50 to-transparent' />
-      <div className='absolute left-8 top-8 h-px w-12 bg-linear-to-r from-deep-orange/50 to-transparent' />
-      <div className='absolute bottom-8 right-8 h-12 w-px bg-linear-to-t from-deep-orange/50 to-transparent' />
-      <div className='absolute bottom-8 right-8 h-px w-12 bg-linear-to-l from-deep-orange/50 to-transparent' />
+      <div className='absolute left-8 top-8 h-12 w-px bg-linear-to-b from-sky-400/50 to-transparent' />
+      <div className='absolute left-8 top-8 h-px w-12 bg-linear-to-r from-sky-400/50 to-transparent' />
+      <div className='absolute bottom-8 right-8 h-12 w-px bg-linear-to-t from-sky-400/50 to-transparent' />
+      <div className='absolute bottom-8 right-8 h-px w-12 bg-linear-to-l from-sky-400/50 to-transparent' />
     </div>
   );
 }
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className='flex min-h-screen dark:bg-[#111]'>
+    <div
+      className='flex min-h-screen dark:bg-[#111]'
+      style={
+        {
+          "--ring": "#3b82f6",
+        } as CSSProperties
+      }
+    >
       {/* Left side - Auth form */}
       <div className='flex w-full flex-col items-center justify-center bg-background px-8 dark:bg-[#111] lg:w-1/2'>
         <div className='w-full max-w-sm'>

@@ -158,7 +158,7 @@
 /* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 8px;
-  height: 8px;
+  height: 1px;
 }
 
 ::-webkit-scrollbar-track {
@@ -228,6 +228,42 @@
 .border-orange {
   border-color: #ff5500;
 }
+
+.scrollbar-slim {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(100, 116, 139, 0.35) transparent;
+}
+
+.scrollbar-slim::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+.scrollbar-slim::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-slim::-webkit-scrollbar-thumb {
+  background-color: rgba(100, 116, 139, 0.3);
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background-clip: padding-box;
+}
+
+.scrollbar-slim::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(100, 116, 139, 0.5);
+}
+
+.scrollbar-none {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.scrollbar-none::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
 
 /* Korium font utility */
 .font-korium {
@@ -393,4 +429,19 @@
 .editor-link {
   color: var(--primary);
   text-decoration: underline;
+}
+@font-face {
+  font-family: "T1 Korium";
+  src: url("../fonts/T1Korium-4Kg-BF65f3bd01011b8.otf") format("opentype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "T1 Korium";
+  src: url("../fonts/T1Korium-6Kg-BF65f3bd00cf9b8.otf") format("opentype");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
 }

@@ -1,16 +1,23 @@
 "use client";
 
-import { useState, useEffect, useRef, useTransition } from "react";
+import { useState, useEffect, useRef, useTransition, useMemo, useCallback } from "react";
 import { motion } from "framer-motion";
 import { ChatMessage } from "./chat-message";
 import { ChatInput } from "./chat-input";
 import { useTextFlowStore } from "@/store/store";
 import { Users, MessageCircle, X, Sparkles } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
-import { createDocumentChat, getChatForDocument, getMessages, sendMessage } from "@/actions/chat";
+import {
+  createDocumentChat,
+  getChatForDocument,
+  getMessageById,
+  getMessages,
+  sendMessage,
+} from "@/actions/chat";
 import { updateUserAvatar } from "@/actions/user";
 import { toast } from "sonner";
 import { useUser } from "@/hooks/use-user";
+import { Virtuoso } from "react-virtuoso";
 
 // Gradient avatar options - 8 total
 const AVATAR_OPTIONS = [
@@ -113,6 +120,23 @@ function AvatarSelectionScreen({ onSelect }: { onSelect: (gradient: string) => v
   );
 }
 
+function ChatLoadingScreen({ label }: { label: string }) {
+  return (
+    <div className='flex flex-col items-center justify-center h-full p-6 text-center'>
+      <div className='w-full max-w-xs space-y-3'>
+        <div className='h-3 w-32 rounded-full bg-black/10 dark:bg-white/10' />
+        <div className='space-y-2'>
+          <div className='h-8 w-3/4 rounded-2xl bg-black/5 dark:bg-white/5' />
+          <div className='h-8 w-2/3 rounded-2xl bg-black/5 dark:bg-white/5' />
+          <div className='h-8 w-4/5 rounded-2xl bg-black/5 dark:bg-white/5' />
+        </div>
+        <div className='h-3 w-40 rounded-full bg-black/10 dark:bg-white/10' />
+      </div>
+      <p className='mt-3 text-xs text-muted-foreground'>{label}</p>
+    </div>
+  );
+}
+
 interface ChatPaneProps {
   documentId: string;
   documentName: string;
@@ -122,11 +146,13 @@ interface ChatPaneProps {
 export function ChatPane({ documentId, documentName, onClose }: ChatPaneProps) {
   const [messages, setMessages] = useState<any[]>([]);
   const [chatId, setChatId] = useState<string | null>(null);
-  const [isTyping, setIsTyping] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [typingUsers, setTypingUsers] = useState<Record<string, string>>({});
   const [isPending, startTransition] = useTransition();
-  const { user: currentUser } = useUser();
+  const { user: currentUser, loading: userLoading } = useUser();
   const [hasAvatar, setHasAvatar] = useState(false);
+  const [messagesLoading, setMessagesLoading] = useState(true);
+  const messageIdsRef = useRef<Set<string>>(new Set());
+  const channelRef = useRef<ReturnType<typeof createClient>["channel"] | null>(null);
 
   // Check if user already has avatar
   useEffect(() => {
@@ -175,14 +201,17 @@ export function ChatPane({ documentId, documentName, onClose }: ChatPaneProps) {
   useEffect(() => {
     if (!chatId) return;
 
-    // Initial fetch
-    getMessages(chatId).then(setMessages);
+    let cancelled = false;
+    messageIdsRef.current = new Set();
 
-    // Poll for changes every 3 seconds (Robust fallback for Realtime)
-    const intervalId = setInterval(async () => {
-      const fresh = await getMessages(chatId);
-      setMessages(fresh);
-    }, 3000);
+    // Initial fetch
+    setMessagesLoading(true);
+    getMessages(chatId).then((initial) => {
+      if (cancelled) return;
+      initial.forEach((m) => messageIdsRef.current.add(m.id));
+      setMessages(initial);
+      setMessagesLoading(false);
+    });
 
     const supabase = createClient();
     const channel = supabase
@@ -196,22 +225,59 @@ export function ChatPane({ documentId, documentName, onClose }: ChatPaneProps) {
           filter: `chat_id=eq.${chatId}`,
         },
         async (payload) => {
-          const fresh = await getMessages(chatId);
-          setMessages(fresh);
+          const newId = (payload as any)?.new?.id as string | undefined;
+          if (!newId || messageIdsRef.current.has(newId)) return;
+          const full = await getMessageById(newId);
+          if (!full) return;
+          messageIdsRef.current.add(full.id);
+          setMessages((prev) => {
+            // Drop optimistic duplicate if it matches sender/content
+            const deduped = prev.filter(
+              (m) =>
+                !(m.optimistic && m.senderId === full.senderId && m.content === full.content),
+            );
+            return [...deduped, full];
+          });
+        },
+      )
+      .on(
+        "broadcast",
+        { event: "typing" },
+        (payload) => {
+          const { userId, name, isTyping } = (payload as any).payload || {};
+          if (!userId || userId === currentUser?.id) return;
+          setTypingUsers((prev) => {
+            const next = { ...prev };
+            if (isTyping) next[userId] = name || "Someone";
+            else delete next[userId];
+            return next;
+          });
         },
       )
       .subscribe();
+    channelRef.current = channel;
+    const intervalId = setInterval(async () => {
+      const fresh = await getMessages(chatId);
+      if (cancelled) return;
+      setMessages((prev) => {
+        const next = [...prev];
+        fresh.forEach((m) => {
+          if (!messageIdsRef.current.has(m.id)) {
+            messageIdsRef.current.add(m.id);
+            next.push(m);
+          }
+        });
+        return next;
+      });
+    }, 4000);
 
     return () => {
       clearInterval(intervalId);
       supabase.removeChannel(channel);
+      channelRef.current = null;
+      cancelled = true;
     };
-  }, [chatId]);
-
-  // Auto-scroll
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages.length, hasAvatar]); // Scroll when avatar view changes too
+  }, [chatId, currentUser?.id]);
 
   const handleSendMessage = async (content: string) => {
     if (!chatId || !currentUser) return;
@@ -224,6 +290,7 @@ export function ChatPane({ documentId, documentName, onClose }: ChatPaneProps) {
       senderId: currentUser.id,
       senderName: "You",
       senderAvatar: currentUser.user_metadata?.avatar_url,
+      optimistic: true,
     };
     setMessages((prev) => [...prev, optimisticMsg]);
 
@@ -236,13 +303,43 @@ export function ChatPane({ documentId, documentName, onClose }: ChatPaneProps) {
     });
   };
 
+  const handleTypingChange = useCallback(
+    (isTyping: boolean) => {
+      if (!chatId || !currentUser) return;
+      const channel = channelRef.current;
+      if (!channel) return;
+      channel.send({
+        type: "broadcast",
+        event: "typing",
+        payload: {
+          userId: currentUser.id,
+          name: currentUser.user_metadata?.full_name || currentUser.email?.split("@")[0] || "Someone",
+          isTyping,
+        },
+      });
+    },
+    [chatId, currentUser],
+  );
+
+  const typingLabel = useMemo(() => {
+    const names = Object.values(typingUsers);
+    if (names.length === 0) return "";
+    if (names.length === 1) return `${names[0]} is typing...`;
+    if (names.length === 2) return `${names[0]} and ${names[1]} are typing...`;
+    return "Several people are typing...";
+  }, [typingUsers]);
+
   return (
     <motion.div
-      initial={{ width: 0, opacity: 0 }}
-      animate={{ width: 340, opacity: 1 }}
-      exit={{ width: 0, opacity: 0 }}
-      transition={{ type: "spring", stiffness: 300, damping: 30 }}
-      className='flex flex-col h-full bg-white dark:bg-[#0A0A0A] rounded-2xl overflow-hidden border border-neutral-200 dark:border-neutral-800'
+      initial={{ width: 0, opacity: 0, x: 16 }}
+      animate={{ width: 360, opacity: 1, x: 0 }}
+      exit={{ width: 0, opacity: 0, x: 16 }}
+      transition={{
+        width: { type: "spring", stiffness: 220, damping: 28 },
+        opacity: { duration: 0.2 },
+        x: { type: "spring", stiffness: 220, damping: 28 },
+      }}
+      className='flex flex-col h-full bg-white dark:bg-[#0A0A0A] rounded-2xl overflow-hidden border border-neutral-200 dark:border-neutral-800 will-change-transform'
     >
       {/* Header */}
       <div className='flex items-center justify-between p-4 border-b border-neutral-200 dark:border-neutral-800'>
@@ -268,50 +365,62 @@ export function ChatPane({ documentId, documentName, onClose }: ChatPaneProps) {
         </button>
       </div>
 
-      {!hasAvatar ? (
+      {userLoading ? (
+        <ChatLoadingScreen label='Pulling up your discussions...' />
+      ) : !hasAvatar ? (
         <AvatarSelectionScreen onSelect={handleAvatarSelect} />
       ) : (
         <>
           {/* Messages */}
-          <div className='flex-1 overflow-y-auto p-4 space-y-3'>
-            {messages.length === 0 ? (
-              <div className='flex flex-col items-center justify-center h-full text-center'>
-                <div className='flex size-10 items-center justify-center rounded-full bg-neutral-100 dark:bg-neutral-800 mb-3'>
-                  <MessageCircle className='size-4 text-muted-foreground' />
-                </div>
-                <p className='text-sm text-muted-foreground'>No messages yet</p>
-              </div>
-            ) : (
-              <>
-                {messages.map((message) => {
-                  const isCurrentUser = message.senderId === currentUser?.id;
-                  const user = {
-                    id: message.senderId,
-                    name: message.senderName || "Unknown",
-                    avatar: message.senderAvatar,
-                    email: "",
-                    color: "blue",
-                  };
+          <div className='flex-1 min-h-0'>
+            <Virtuoso
+              data={messages}
+              followOutput='auto'
+              className='h-full scrollbar-slim'
+              components={{
+                EmptyPlaceholder: () =>
+                  messagesLoading || !chatId ? (
+                    <ChatLoadingScreen label='Pulling up your discussions...' />
+                  ) : (
+                    <div className='flex flex-col items-center justify-center h-full text-center'>
+                      <div className='flex size-10 items-center justify-center rounded-full bg-neutral-100 dark:bg-neutral-800 mb-3'>
+                        <MessageCircle className='size-4 text-muted-foreground' />
+                      </div>
+                      <p className='text-sm text-muted-foreground'>No messages yet</p>
+                    </div>
+                  ),
+              }}
+              itemContent={(_, message) => {
+                const isCurrentUser = message.senderId === currentUser?.id;
+                const user = {
+                  id: message.senderId,
+                  name: message.senderName || "Unknown",
+                  avatar: message.senderAvatar,
+                  email: "",
+                  color: "blue",
+                };
 
-                  return (
+                return (
+                  <div className='px-4 py-1.5'>
                     <ChatMessage
-                      key={message.id}
                       content={message.content}
                       createdAt={new Date(message.createdAt)}
                       user={user as any}
                       isCurrentUser={isCurrentUser}
                     />
-                  );
-                })}
-                <div ref={messagesEndRef} />
-              </>
-            )}
+                  </div>
+                );
+              }}
+            />
           </div>
 
           {/* Input */}
+          {typingLabel && (
+            <div className='px-4 pb-1 text-[10px] text-muted-foreground'>{typingLabel}</div>
+          )}
           <ChatInput
             onSend={handleSendMessage}
-            onTypingChange={setIsTyping}
+            onTypingChange={handleTypingChange}
             placeholder='Type a message...'
             disabled={!chatId}
           />

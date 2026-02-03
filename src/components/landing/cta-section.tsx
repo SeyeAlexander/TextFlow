@@ -12,14 +12,12 @@ export function CTASection() {
     e.preventDefault();
     if (email) {
       setIsSubmitted(true);
-      // TODO: Handle actual submission
     }
   };
 
   return (
     <section className='relative overflow-hidden px-6 py-24'>
-      {/* Background gradient */}
-      <div className='pointer-events-none absolute inset-0 bg-linear-to-b from-transparent via-primary/5 to-transparent' />
+      <div className='pointer-events-none absolute inset-0 bg-linear-to-b from-transparent via-blue-500/5 to-transparent' />
 
       <motion.div
         initial={{ opacity: 0, y: 20 }}
@@ -28,11 +26,9 @@ export function CTASection() {
         transition={{ duration: 0.6, ease: "easeOut" }}
         className='relative mx-auto max-w-3xl'
       >
-        {/* Content Card */}
         <div className='rounded-3xl border border-border bg-card p-8 sm:p-12'>
-          {/* Header */}
           <div className='mb-8 text-center'>
-            <span className='mb-4 inline-block font-mono text-xs uppercase tracking-wider text-primary'>
+            <span className='mb-4 inline-block font-mono text-xs uppercase tracking-wider text-blue-500'>
               JOIN THE WAITLIST
             </span>
             <h2 className='mb-4 text-3xl font-bold tracking-tight sm:text-4xl'>
@@ -44,7 +40,6 @@ export function CTASection() {
             </p>
           </div>
 
-          {/* Form */}
           {!isSubmitted ? (
             <form onSubmit={handleSubmit} className='mx-auto max-w-md'>
               <div className='flex gap-3 rounded-xl border border-border bg-background p-2'>
@@ -58,7 +53,7 @@ export function CTASection() {
                 />
                 <button
                   type='submit'
-                  className='group inline-flex items-center gap-2 rounded-lg bg-primary px-6 py-3 text-sm font-medium text-primary-foreground transition-all hover:bg-primary/90'
+                  className='group inline-flex items-center gap-2 rounded-lg bg-blue-500 px-6 py-3 text-sm font-medium text-white transition-all hover:bg-blue-600'
                 >
                   Join
                   <ArrowRight className='h-4 w-4 transition-transform group-hover:translate-x-0.5' />
@@ -71,13 +66,12 @@ export function CTASection() {
               animate={{ opacity: 1, scale: 1 }}
               className='flex flex-col items-center justify-center gap-3 py-4'
             >
-              <CheckCircle className='h-12 w-12 text-primary' />
+              <CheckCircle className='h-12 w-12 text-blue-500' />
               <p className='font-medium'>You&apos;re on the list!</p>
               <p className='text-sm text-muted-foreground'>We&apos;ll be in touch soon.</p>
             </motion.div>
           )}
 
-          {/* Trust Signals */}
           <div className='mt-8 flex flex-wrap items-center justify-center gap-6 border-t border-border pt-8'>
             <div className='flex items-center gap-2 font-mono text-xs text-muted-foreground'>
               <span className='relative flex h-2 w-2'>
@@ -93,7 +87,6 @@ export function CTASection() {
           </div>
         </div>
 
-        {/* Decorative barcode */}
         <div className='mt-6 flex justify-center'>
           <div className='flex h-4 gap-0.5 opacity-20'>
             {[...Array(40)].map((_, i) => (

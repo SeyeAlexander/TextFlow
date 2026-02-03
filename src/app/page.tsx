@@ -1,12 +1,17 @@
-import { Hero, FeatureGrid, CTASection, Footer } from "@/components/landing";
+import { Hero, FeatureGrid, CTASection, Footer, MobileHero } from "@/components/landing";
 
 export default function Home() {
   return (
     <main className='min-h-screen bg-background dark:bg-[#111]'>
-      <Hero />
-      <FeatureGrid />
-      <CTASection />
-      <Footer />
+      <div className='md:hidden'>
+        <MobileHero />
+      </div>
+      <div className='hidden md:block'>
+        <Hero />
+        <FeatureGrid />
+        <CTASection />
+        <Footer />
+      </div>
     </main>
   );
 }

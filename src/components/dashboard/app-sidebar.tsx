@@ -1123,13 +1123,13 @@ function ExpandedSidebar({
   return (
     <aside className='flex h-full w-56 flex-col transition-all duration-300 bg-[#F5F5F5] dark:bg-[#111]'>
       <div className='flex items-center justify-between p-4 pb-6'>
-        <DotLogo size='sm' />
+        <DotLogo size='sm' color='blue' />
         <span className='rounded bg-black/5 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground dark:bg-white/5'>
           v1.0
         </span>
       </div>
 
-      <div className='flex-1 overflow-y-auto px-3 py-2 scrollbar-none'>
+      <div className='flex-1 overflow-y-auto px-3 py-2 scrollbar-slim'>
         <div className='mb-4 space-y-2'>
           <button
             onClick={onSearch}
@@ -1312,6 +1312,17 @@ export function AppSidebar({ collapsed }: { collapsed: boolean }) {
 
     // Generate ID and navigate immediately
     const tempId = crypto.randomUUID();
+    const sidebarData: any = queryClient.getQueryData(["sidebar"]);
+    const existingNames = new Set<string>(
+      (sidebarData?.files || []).map((f: any) => String(f.name || "")),
+    );
+    const baseName = "New Document";
+    let nextName = baseName;
+    if (existingNames.has(baseName)) {
+      let i = 1;
+      while (existingNames.has(`${baseName} (${i})`)) i += 1;
+      nextName = `${baseName} (${i})`;
+    }
     const emptyLexicalState = {
       root: {
         children: [
@@ -1340,7 +1351,7 @@ export function AppSidebar({ collapsed }: { collapsed: boolean }) {
         files: [
           {
             id: tempId,
-            name: "New Document",
+            name: nextName,
             updatedAt: new Date().toISOString(),
             ownerId: "user", // placeholder
             content: emptyLexicalState,
@@ -1355,7 +1366,7 @@ export function AppSidebar({ collapsed }: { collapsed: boolean }) {
     // Optimistically initiate document cache to prevent 404
     queryClient.setQueryData(["document", tempId], {
       id: tempId,
-      name: "New Document",
+      name: nextName,
       content: emptyLexicalState,
       updatedAt: new Date().toISOString(),
       ownerId: "user",
@@ -1367,7 +1378,7 @@ export function AppSidebar({ collapsed }: { collapsed: boolean }) {
     router.push(`/dashboard/document/${tempId}`);
 
     // Fire mutation in background
-    createFileMutation.mutate({ name: "New Document", id: tempId });
+    createFileMutation.mutate({ name: nextName, id: tempId });
     toast.success("Document created");
   };
 

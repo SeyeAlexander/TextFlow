@@ -6,6 +6,7 @@ interface DotLogoProps {
   className?: string;
   animated?: boolean;
   size?: "sm" | "md" | "lg";
+  color?: "default" | "blue";
 }
 
 // 5x7 dot matrix patterns for each letter
@@ -81,7 +82,12 @@ const sizeConfig = {
   lg: { dotSize: 4, gap: 2, letterGap: 8 },
 };
 
-export function DotLogo({ className = "", animated = true, size = "md" }: DotLogoProps) {
+export function DotLogo({
+  className = "",
+  animated = true,
+  size = "md",
+  color = "default",
+}: DotLogoProps) {
   const text = "TEXTFLOW";
   const config = sizeConfig[size];
 
@@ -114,6 +120,15 @@ export function DotLogo({ className = "", animated = true, size = "md" }: DotLog
                   const globalCol = startCol + colIndex;
                   const delay = animated ? globalCol * 0.03 : 0;
 
+                  const dotClass =
+                    color === "blue"
+                      ? dot
+                        ? "bg-blue-600 dark:bg-blue-200"
+                        : "bg-blue-400/15"
+                      : dot
+                        ? "bg-foreground"
+                        : "bg-foreground/10";
+
                   return (
                     <motion.div
                       key={colIndex}
@@ -129,7 +144,7 @@ export function DotLogo({ className = "", animated = true, size = "md" }: DotLog
                         duration: 0.3,
                         ease: "easeOut",
                       }}
-                      className={`rounded-full ${dot ? "bg-foreground" : "bg-foreground/10"}`}
+                      className={`rounded-full ${dotClass}`}
                       style={{
                         width: config.dotSize,
                         height: config.dotSize,

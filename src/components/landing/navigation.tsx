@@ -19,15 +19,13 @@ export function Navigation() {
       className='fixed top-0 left-0 right-0 z-50 px-6 py-4'
     >
       <nav className='mx-auto flex max-w-7xl items-center justify-between rounded-full border border-border/50 bg-background/80 px-6 py-3 backdrop-blur-md'>
-        {/* Logo */}
         <Link href='/' className='flex items-center gap-2'>
           <span className='font-mono text-lg font-bold tracking-tight'>TEXTFLOW</span>
-          <span className='hidden rounded-md bg-primary/10 px-2 py-0.5 font-mono text-xs text-primary sm:inline-block'>
+          <span className='hidden rounded-md bg-blue-500/10 px-2 py-0.5 font-mono text-xs text-blue-500 sm:inline-block'>
             BETA
           </span>
         </Link>
 
-        {/* Nav Links */}
         <div className='hidden items-center gap-1 md:flex'>
           {navLinks.map((link) => (
             <Link
@@ -40,7 +38,6 @@ export function Navigation() {
           ))}
         </div>
 
-        {/* Right Section */}
         <div className='flex items-center gap-3'>
           <ThemeToggle />
           <Link
@@ -51,7 +48,7 @@ export function Navigation() {
           </Link>
           <Link
             href='/signup'
-            className='rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90'
+            className='rounded-lg bg-blue-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-600'
           >
             Get Started
           </Link>

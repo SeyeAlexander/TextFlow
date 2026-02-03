@@ -4,7 +4,7 @@ import { DotLogo } from "@/components/shared/dot-logo";
 
 export function MobileRestriction() {
   return (
-    <div className='fixed inset-0 z-20 flex flex-col items-center justify-center bg-[#F5F5F5] px-6 text-center dark:bg-[#111] lg:hidden'>
+    <div className='fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#F5F5F5] px-6 text-center dark:bg-[#111] md:hidden'>
       <div className='flex flex-col items-center'>
         <div className='mb-8 flex items-center justify-center gap-3'>
           <DotLogo size='lg' animated={true} />

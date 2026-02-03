@@ -198,15 +198,15 @@ export function Hero() {
             <div className='flex items-center justify-between border-r dark:border-[rgba(255,255,255,0.15)] px-4 text-muted-foreground lg:px-6'>
               <DotLogo size='sm' animated={false} />
               <span className='relative flex h-1.5 w-1.5'>
-                <span className='absolute inline-flex h-full w-full animate-ping rounded-full bg-orange opacity-75' />
-                <span className='relative inline-flex h-1.5 w-1.5 rounded-full bg-orange' />
+                <span className='absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-500 opacity-75' />
+                <span className='relative inline-flex h-1.5 w-1.5 rounded-full bg-blue-500' />
               </span>
             </div>
             <div className='flex items-center border-r dark:border-[rgba(255,255,255,0.15)] px-4 text-muted-foreground lg:px-6'>
               <span>V. 1.0.0</span>
             </div>
             <div className='flex items-center justify-center border-r dark:border-[rgba(255,255,255,0.15)] px-4 lg:px-6'>
-              <Link href='/signup' className='text-orange transition-colors hover:text-deep-orange'>
+              <Link href='/signup' className='text-blue-500 transition-colors hover:text-blue-600'>
                 GET STARTED →
               </Link>
             </div>
@@ -224,10 +224,9 @@ export function Hero() {
           >
             <h1 className='mb-10 font-korium text-[clamp(4rem,10vw,10rem)] font-normal  leading-[0.85] tracking-wider'>
               Text
-              {/* <br /> */}
-              <span className='text-orange'>Flow</span>
+              <span className='text-blue-500'>Flow</span>
             </h1>
-            <p className='max-w-[400px] border-l-2 border-orange/50 pl-5 font-mono text-sm leading-relaxed text-muted-foreground'>
+            <p className='max-w-[400px] border-l-2 border-blue-500/50 pl-5 font-mono text-sm leading-relaxed text-muted-foreground'>
               Real-time collaborative block-based editor. Build documents together with zero latency
               and infinite flexibility.
             </p>
@@ -267,7 +266,7 @@ export function Hero() {
                 key={i}
                 className='grid min-h-[120px] grid-cols-[60px_1fr] border-0 dark:border-[rgba(255,255,255,0.15)]'
               >
-                <div className='flex items-center justify-center border-0 dark:border-[rgba(255,255,255,0.15)] font-mono text-xs text-orange'>
+                <div className='flex items-center justify-center border-0 dark:border-[rgba(255,255,255,0.15)] font-mono text-xs text-blue-500'>
                   {feature.num}
                 </div>
                 <div className='flex flex-col justify-center p-6'>
@@ -289,14 +288,14 @@ export function Hero() {
           >
             <Link
               href='/login'
-              className='group flex items-center justify-between border-t dark:border-[rgba(255,255,255,0.15)] text-deep-orange p-2 transition-all duration-200 hover:opacity-90 lg:p-2 lg:px-5'
+              className='group flex items-center justify-between border-t dark:border-[rgba(255,255,255,0.15)] text-blue-600 p-2 transition-all duration-200 hover:opacity-90 lg:p-2 lg:px-5'
             >
               <span className='text-xl tracking-tight lg:text-2xl'>Sign In</span>
               <ArrowRight className='h-5 w-5 transition-transform group-hover:translate-x-1' />
             </Link>
             <Link
               href='/signup'
-              className='group flex items-center justify-between border-t dark:border-[rgba(255,255,255,0.15)] text-orange p-2 transition-all duration-200 hover:opacity-90 lg:p-2 lg:px-5'
+              className='group flex items-center justify-between border-t dark:border-[rgba(255,255,255,0.15)] text-blue-500 p-2 transition-all duration-200 hover:opacity-90 lg:p-2 lg:px-5'
             >
               <span className='text-xl tracking-tight lg:text-2xl'>Sign Up</span>
               <ArrowRight className='h-5 w-5 transition-transform group-hover:translate-x-1' />
@@ -325,7 +324,7 @@ export function Hero() {
 
           {/* Overlay UI */}
           <div className='pointer-events-none absolute inset-0 z-2 flex flex-col justify-between p-8'>
-            <div className='self-start bg-orange px-2 py-1 font-mono text-[10px] font-bold text-black'>
+            <div className='self-start bg-blue-500 px-2 py-1 font-mono text-[10px] font-bold text-white'>
               SYNC: LIVE
             </div>
             <div className='self-end text-right font-mono text-[10px] text-muted-foreground'>

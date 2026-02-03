@@ -299,3 +299,39 @@ export async function getMessages(chatId: string) {
 
   return msgs.reverse(); // Return in chronological order
 }
+
+export async function getMessageById(messageId: string) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  const msg = await db
+    .select({
+      id: messages.id,
+      content: messages.content,
+      createdAt: messages.createdAt,
+      senderId: messages.senderId,
+      senderName: profiles.fullName,
+      senderAvatar: profiles.avatarUrl,
+      chatId: messages.chatId,
+    })
+    .from(messages)
+    .innerJoin(profiles, eq(messages.senderId, profiles.id))
+    .where(eq(messages.id, messageId))
+    .limit(1);
+
+  if (!msg[0]) return null;
+
+  // Ensure user is a participant in the chat
+  const membership = await db
+    .select()
+    .from(chatParticipants)
+    .where(and(eq(chatParticipants.chatId, msg[0].chatId), eq(chatParticipants.userId, user.id)))
+    .limit(1);
+
+  if (membership.length === 0) return null;
+
+  return msg[0];
+}

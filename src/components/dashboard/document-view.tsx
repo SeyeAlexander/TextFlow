@@ -210,6 +210,9 @@ export function DocumentView({ fileId }: { fileId: string }) {
   const sidebarCollapsed = useTextFlowStore((s) => s.sidebarCollapsed);
   const toggleSidebar = useTextFlowStore((s) => s.toggleSidebar);
   const chatOpen = useTextFlowStore((s) => s.chatOpen);
+  const activeChatDocumentId = useTextFlowStore((s) => s.activeChatDocumentId);
+  const setChatOpen = useTextFlowStore((s) => s.setChatOpen);
+  const setActiveChatDocument = useTextFlowStore((s) => s.setActiveChatDocument);
   const queryClient = useQueryClient();
 
   const saveMutation = useMutation({
@@ -236,6 +239,8 @@ export function DocumentView({ fileId }: { fileId: string }) {
   const isDeletedRef = useRef(false);
   const latestContentRef = useRef<string | null>(null);
   const lastSavedRef = useRef<string | null>(null);
+  const renameTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const renameInFlightRef = useRef(false);
 
   // Initialize title
   useEffect(() => {
@@ -250,6 +255,18 @@ export function DocumentView({ fileId }: { fileId: string }) {
     }
   }, [file]);
 
+  useEffect(() => {
+    setChatOpen(false);
+    setActiveChatDocument(null);
+  }, [fileId, setChatOpen, setActiveChatDocument]);
+
+  useEffect(() => {
+    if (file && !file.shared) {
+      setChatOpen(false);
+      setActiveChatDocument(null);
+    }
+  }, [file, setChatOpen, setActiveChatDocument]);
+
   const handleContentChange = useCallback(
     (content: string) => {
       // If deleted, do not save
@@ -261,8 +278,54 @@ export function DocumentView({ fileId }: { fileId: string }) {
         return;
       }
       setIsDirty(true);
+
+      const isGenericName = /^(New Document|New Document \\(\\d+\\)|New\\(\\d+\\)|New|Untitled)$/i.test(
+        documentTitle,
+      );
+      if (isGenericName) {
+        if (renameTimeoutRef.current) {
+          clearTimeout(renameTimeoutRef.current);
+        }
+        renameTimeoutRef.current = setTimeout(async () => {
+          if (renameInFlightRef.current) return;
+          let firstLine = "";
+          try {
+            const parsed = JSON.parse(content);
+            if (parsed?.root?.children?.length) {
+              const firstNode = parsed.root.children[0];
+              if (Array.isArray(firstNode?.children)) {
+                firstLine = firstNode.children
+                  .map((c: any) => c?.text || "")
+                  .join("")
+                  .trim()
+                  .substring(0, 50);
+              } else if (firstNode?.text) {
+                firstLine = String(firstNode.text).trim().substring(0, 50);
+              }
+            }
+          } catch {
+            return;
+          }
+          if (!firstLine) return;
+          renameInFlightRef.current = true;
+          try {
+            const { renameFile } = await import("@/actions/files");
+            const formData = new FormData();
+            formData.append("id", fileId);
+            formData.append("name", firstLine);
+            await renameFile(formData);
+            setDocumentTitle(firstLine);
+            queryClient.setQueryData(["document", fileId], (old: any) =>
+              old ? { ...old, name: firstLine } : old,
+            );
+            queryClient.invalidateQueries({ queryKey: ["sidebar"] });
+          } finally {
+            renameInFlightRef.current = false;
+          }
+        }, 5000);
+      }
     },
-    [fileId, saveMutation],
+    [documentTitle, fileId, queryClient],
   );
 
   const handleManualSave = useCallback(
@@ -488,14 +551,14 @@ export function DocumentView({ fileId }: { fileId: string }) {
                 }
                 onChange={handleContentChange}
                 documentId={fileId}
-                enableAutoName={true}
+                enableAutoName={false}
               />
             </motion.div>
           </div>
         </motion.main>
 
         <AnimatePresence>
-          {chatOpen && (
+          {chatOpen && file.shared && activeChatDocumentId === fileId && (
             <ChatPane
               documentId={fileId}
               documentName={file.name}

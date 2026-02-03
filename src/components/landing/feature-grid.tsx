@@ -41,9 +41,9 @@ function FeatureCard({ number, icon, title, description, variant, specs }: Featu
       muted: "text-black/60",
       border: "border-black/10",
       innerBg: "bg-black/5",
-      iconBg: "bg-[#ff5500]/10",
-      iconColor: "text-[#ff5500]",
-      arrowColor: "text-[#ff5500]",
+      iconBg: "bg-blue-500/10",
+      iconColor: "text-blue-500",
+      arrowColor: "text-blue-500",
     },
     black: {
       bg: "bg-[#0a0a0a]",
@@ -51,9 +51,9 @@ function FeatureCard({ number, icon, title, description, variant, specs }: Featu
       muted: "text-white/60",
       border: "border-white/10",
       innerBg: "bg-white/5",
-      iconBg: "bg-[#ff5500]/20",
-      iconColor: "text-[#ff5500]",
-      arrowColor: "text-[#ff5500]",
+      iconBg: "bg-blue-500/20",
+      iconColor: "text-blue-500",
+      arrowColor: "text-blue-500",
     },
     accent: {
       bg: "bg-white",
@@ -61,9 +61,9 @@ function FeatureCard({ number, icon, title, description, variant, specs }: Featu
       muted: "text-black/60",
       border: "border-black/10",
       innerBg: "bg-black/5",
-      iconBg: "bg-[#ff5500]/10",
-      iconColor: "text-[#ff5500]",
-      arrowColor: "text-[#ff5500]",
+      iconBg: "bg-blue-500/10",
+      iconColor: "text-blue-500",
+      arrowColor: "text-blue-500",
     },
   };
 
@@ -75,26 +75,21 @@ function FeatureCard({ number, icon, title, description, variant, specs }: Featu
       whileHover={{ y: -8, transition: { duration: 0.3 } }}
       className={`group relative flex min-h-[580px] rounded-xs flex-col border ${v.border} ${v.bg}`}
     >
-      {/* Header with number and arrow */}
       <div className='flex items-start justify-between p-6'>
-        <DotNumber number={number} color='orange' />
+        <DotNumber number={number} />
         <div className={v.arrowColor}>
           <ArrowUpRight className='h-5 w-5 transition-transform group-hover:translate-x-1 group-hover:-translate-y-1' />
         </div>
       </div>
 
-      {/* Main content */}
       <div className='flex flex-1 flex-col p-6'>
-        {/* Icon */}
         <div className={`mb-6 flex h-12 w-12 items-center justify-center rounded-sm ${v.iconBg}`}>
           <div className={v.iconColor}>{icon}</div>
         </div>
 
-        {/* Title & Description */}
         <h3 className={`font-korium mb-3 text-xl font-medium ${v.text}`}>{title}</h3>
         <p className={`flex-1 text-sm leading-relaxed ${v.muted}`}>{description}</p>
 
-        {/* Specs Grid */}
         {specs && (
           <div className='mt-2 grid grid-cols-2 gap-px overflow-hidden rounded-sm border border-inherit'>
             {specs.map((spec, i) => (
@@ -156,9 +151,8 @@ export function FeatureGrid() {
 
   return (
     <section id='features' className='relative border-0 border-[rgba(255,255,255,0.15)] px-6 py-24'>
-      {/* Section Header */}
       <div className='mx-auto mb-16 max-w-2xl text-center'>
-        <span className='mb-4 inline-block font-mono text-sm text-orange'>CAPABILITIES</span>
+        <span className='mb-4 inline-block font-mono text-sm text-blue-500'>CAPABILITIES</span>
         <h2 className='font-korium mb-4 text-3xl font-medium tracking-tight sm:text-4xl'>
           Everything you need to write together
         </h2>
@@ -168,7 +162,6 @@ export function FeatureGrid() {
         </p>
       </div>
 
-      {/* Feature Grid - 3 cards with gaps */}
       <motion.div
         variants={containerVariants}
         initial='hidden'

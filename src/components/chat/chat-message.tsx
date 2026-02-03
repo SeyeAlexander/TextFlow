@@ -2,6 +2,7 @@
 
 import { formatRelativeTime } from "@/lib/utils";
 import { User } from "@/store/store";
+import React from "react";
 
 interface ChatMessageProps {
   content: string;
@@ -10,7 +11,7 @@ interface ChatMessageProps {
   isCurrentUser?: boolean;
 }
 
-export function ChatMessage({ content, createdAt, user, isCurrentUser = false }: ChatMessageProps) {
+function ChatMessageBase({ content, createdAt, user, isCurrentUser = false }: ChatMessageProps) {
   return (
     <div className={`flex gap-3 ${isCurrentUser ? "flex-row-reverse" : ""}`}>
       {/* Avatar */}
@@ -45,3 +46,5 @@ export function ChatMessage({ content, createdAt, user, isCurrentUser = false }:
     </div>
   );
 }
+
+export const ChatMessage = React.memo(ChatMessageBase);
