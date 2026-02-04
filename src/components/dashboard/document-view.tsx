@@ -291,7 +291,7 @@ export function DocumentView({ fileId }: { fileId: string }) {
   const renameInFlightRef = useRef(false);
   const autosaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastActivityRef = useRef<number>(Date.now());
-  const AUTOSAVE_DELAY = 6000; // 6 seconds after typing stops
+  const AUTOSAVE_DELAY = 3000; // 3 seconds after typing stops
   const IDLE_TIMEOUT = 60000; // 60 seconds of no activity = pause autosave
 
   // Initialize title
