@@ -282,12 +282,17 @@ export function DocumentView({ fileId }: { fileId: string }) {
   const [isDirty, setIsDirty] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [documentTitle, setDocumentTitle] = useState("");
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
 
   const isDeletedRef = useRef(false);
   const latestContentRef = useRef<string | null>(null);
   const lastSavedRef = useRef<string | null>(null);
   const renameTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const renameInFlightRef = useRef(false);
+  const autosaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastActivityRef = useRef<number>(Date.now());
+  const AUTOSAVE_DELAY = 6000; // 6 seconds after typing stops
+  const IDLE_TIMEOUT = 60000; // 60 seconds of no activity = pause autosave
 
   // Initialize title
   useEffect(() => {
@@ -314,17 +319,49 @@ export function DocumentView({ fileId }: { fileId: string }) {
     }
   }, [file, setChatOpen, setActiveChatDocument]);
 
+  // Autosave function - separate from manual save for different UX
+  const performAutosave = useCallback(async () => {
+    if (isDeletedRef.current) return;
+    const latest = latestContentRef.current;
+    if (!latest || latest === lastSavedRef.current) return;
+
+    setSaveStatus("saving");
+    try {
+      await saveMutation.mutateAsync({ id: fileId, content: latest });
+      lastSavedRef.current = latest;
+      setIsDirty(false);
+      setSaveStatus("saved");
+      // Reset to idle after 2s
+      setTimeout(() => setSaveStatus("idle"), 2000);
+    } catch {
+      setSaveStatus("idle"); // Silent fail for autosave, manual save shows toast
+    }
+  }, [fileId, saveMutation]);
+
   const handleContentChange = useCallback(
     (content: string) => {
       // If deleted, do not save
       if (isDeletedRef.current) return;
 
       latestContentRef.current = content;
+      lastActivityRef.current = Date.now();
 
       if (content === lastSavedRef.current) {
         return;
       }
       setIsDirty(true);
+
+      // Schedule autosave (debounced)
+      if (autosaveTimeoutRef.current) {
+        clearTimeout(autosaveTimeoutRef.current);
+      }
+      autosaveTimeoutRef.current = setTimeout(() => {
+        // Check if still active (not idle for too long)
+        const timeSinceActivity = Date.now() - lastActivityRef.current;
+        if (timeSinceActivity < IDLE_TIMEOUT) {
+          performAutosave();
+        }
+      }, AUTOSAVE_DELAY);
 
       const isGenericName =
         /^(New Document|New Document \\(\\d+\\)|New\\(\\d+\\)|New|Untitled)$/i.test(documentTitle);
@@ -371,7 +408,7 @@ export function DocumentView({ fileId }: { fileId: string }) {
         }, 5000);
       }
     },
-    [documentTitle, fileId, queryClient],
+    [documentTitle, fileId, queryClient, performAutosave],
   );
 
   const handleManualSave = useCallback(
@@ -513,9 +550,26 @@ export function DocumentView({ fileId }: { fileId: string }) {
                 <motion.p
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  className='text-[10px] text-muted-foreground'
+                  className='text-[10px] text-muted-foreground flex items-center gap-1'
                 >
-                  {isSaving ? "Saving..." : isDirty ? "Unsaved changes" : "All changes saved"}
+                  {saveStatus === "saving" ? (
+                    <>
+                      <span className='size-1.5 rounded-full bg-blue-500 animate-pulse' />
+                      Saving...
+                    </>
+                  ) : saveStatus === "saved" ? (
+                    <>
+                      <span className='size-1.5 rounded-full bg-green-500' />
+                      Saved
+                    </>
+                  ) : isDirty ? (
+                    <>
+                      <span className='size-1.5 rounded-full bg-amber-400' />
+                      Unsaved
+                    </>
+                  ) : (
+                    "All changes saved"
+                  )}
                 </motion.p>
               </div>
             </div>
