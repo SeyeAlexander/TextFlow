@@ -4,6 +4,7 @@ import { createClient } from "@/utils/supabase/server";
 import { db } from "@/db";
 import { documents, profiles, documentCollaborators, notifications } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
+// import { revalidatePath } from "next/cache";
 import { createDocumentChat } from "./chat";
 
 export async function saveDocument(documentId: string, content: string) {
@@ -61,8 +62,8 @@ export async function toggleStar(documentId: string) {
     })
     .where(eq(documents.id, documentId));
 
-  revalidatePath("/dashboard");
-  revalidatePath(`/dashboard/document/${documentId}`);
+  // revalidatePath("/dashboard");
+  // revalidatePath(`/dashboard/document/${documentId}`);
 }
 
 export async function shareDocumentByEmail(documentId: string, email: string) {
@@ -112,5 +113,5 @@ export async function shareDocumentByEmail(documentId: string, email: string) {
     await createDocumentChat(documentId, [targetUser.id]);
   }
 
-  revalidatePath(`/dashboard/document/${documentId}`);
+  // revalidatePath(`/dashboard/document/${documentId}`);
 }

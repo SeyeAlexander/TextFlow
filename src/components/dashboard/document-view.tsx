@@ -224,10 +224,57 @@ export function DocumentView({ fileId }: { fileId: string }) {
 
   const starMutation = useMutation({
     mutationFn: () => toggleStar(fileId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["document", fileId] });
-      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+    onMutate: async () => {
+      // Cancel queries but DO NOT invalidate document to prevent editor reload
+      await queryClient.cancelQueries({ queryKey: ["sidebar"] });
+      await queryClient.cancelQueries({ queryKey: ["dashboard"] });
+
+      const previousDocument = queryClient.getQueryData(["document", fileId]);
+      const previousSidebar = queryClient.getQueryData(["sidebar"]);
+      const previousDashboard = queryClient.getQueryData(["dashboard"]);
+
+      // Optimistically update document cache (direct update, no refetch)
+      queryClient.setQueryData(["document", fileId], (old: any) => {
+        if (!old) return old;
+        return { ...old, starred: !old.starred };
+      });
+
+      // Update sidebar
+      queryClient.setQueryData(["sidebar"], (old: any) => {
+        if (!old) return old;
+        return {
+          ...old,
+          files: old.files.map((f: any) => (f.id === fileId ? { ...f, starred: !f.starred } : f)),
+        };
+      });
+
+      // Update dashboard
+      queryClient.setQueryData(["dashboard"], (old: any) => {
+        if (!old) return old;
+        return {
+          ...old,
+          files: old.files.map((f: any) => (f.id === fileId ? { ...f, starred: !f.starred } : f)),
+        };
+      });
+
+      return { previousDocument, previousSidebar, previousDashboard };
+    },
+    onError: (err, vars, context) => {
+      // Rollback all caches
+      if (context?.previousDocument) {
+        queryClient.setQueryData(["document", fileId], context.previousDocument);
+      }
+      if (context?.previousSidebar) {
+        queryClient.setQueryData(["sidebar"], context.previousSidebar);
+      }
+      if (context?.previousDashboard) {
+        queryClient.setQueryData(["dashboard"], context.previousDashboard);
+      }
+    },
+    onSettled: () => {
+      // Only invalidate sidebar and dashboard, NOT document (to prevent editor reload)
       queryClient.invalidateQueries({ queryKey: ["sidebar"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
     },
   });
 
@@ -279,9 +326,8 @@ export function DocumentView({ fileId }: { fileId: string }) {
       }
       setIsDirty(true);
 
-      const isGenericName = /^(New Document|New Document \\(\\d+\\)|New\\(\\d+\\)|New|Untitled)$/i.test(
-        documentTitle,
-      );
+      const isGenericName =
+        /^(New Document|New Document \\(\\d+\\)|New\\(\\d+\\)|New|Untitled)$/i.test(documentTitle);
       if (isGenericName) {
         if (renameTimeoutRef.current) {
           clearTimeout(renameTimeoutRef.current);

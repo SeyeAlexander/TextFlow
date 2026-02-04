@@ -24,15 +24,60 @@ export function CreateFolderModal({ isOpen, onClose }: CreateFolderModalProps) {
       formData.append("name", folderName);
       await createFolder(formData);
     },
-    onSuccess: () => {
+    onMutate: async (folderName) => {
+      await queryClient.cancelQueries({ queryKey: ["dashboard"] });
+      await queryClient.cancelQueries({ queryKey: ["sidebar"] });
+      const previousDashboard = queryClient.getQueryData(["dashboard"]);
+      const previousSidebar = queryClient.getQueryData(["sidebar"]);
+
+      const tempId = `temp-${Date.now()}`;
+      queryClient.setQueryData(["dashboard"], (old: any) => {
+        if (!old) return old;
+        return {
+          ...old,
+          folders: [
+            { id: tempId, name: folderName, fileCount: 0, createdAt: new Date().toISOString() },
+            ...(old.folders || []),
+          ],
+        };
+      });
+      queryClient.setQueryData(["sidebar"], (old: any) => {
+        if (!old) return old;
+        return {
+          ...old,
+          folders: [
+            {
+              id: tempId,
+              name: folderName,
+              parentId: null,
+              isOpen: false,
+              createdAt: new Date().toISOString(),
+              fileCount: 0,
+            },
+            ...(old.folders || []),
+          ],
+        };
+      });
+
+      return { previousDashboard, previousSidebar };
+    },
+    onError: (err, vars, context) => {
+      if (context?.previousDashboard) {
+        queryClient.setQueryData(["dashboard"], context.previousDashboard);
+      }
+      if (context?.previousSidebar) {
+        queryClient.setQueryData(["sidebar"], context.previousSidebar);
+      }
+      toast.error("Failed to create folder");
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       queryClient.invalidateQueries({ queryKey: ["sidebar"] });
+    },
+    onSuccess: () => {
       toast.success("Folder created");
       setName("");
       onClose();
-    },
-    onError: () => {
-      toast.error("Failed to create folder");
     },
   });
 

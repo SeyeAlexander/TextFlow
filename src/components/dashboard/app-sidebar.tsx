@@ -68,8 +68,42 @@ function AddFolderPopover({ isOpen, onClose }: { isOpen: boolean; onClose: () =>
       formData.append("name", name);
       await createFolder(formData);
     },
-    onSuccess: () => {
+    onMutate: async (name) => {
+      await queryClient.cancelQueries({ queryKey: ["sidebar"] });
+      const previousSidebar = queryClient.getQueryData(["sidebar"]);
+
+      // Optimistically add folder
+      const tempId = `temp-${Date.now()}`;
+      queryClient.setQueryData(["sidebar"], (old: any) => {
+        if (!old) return old;
+        return {
+          ...old,
+          folders: [
+            {
+              id: tempId,
+              name,
+              parentId: null,
+              isOpen: false,
+              createdAt: new Date().toISOString(),
+              fileCount: 0,
+            },
+            ...(old.folders || []),
+          ],
+        };
+      });
+
+      return { previousSidebar, tempId };
+    },
+    onError: (err, vars, context) => {
+      if (context?.previousSidebar) {
+        queryClient.setQueryData(["sidebar"], context.previousSidebar);
+      }
+      toast.error("Failed to create folder");
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["sidebar"] });
+    },
+    onSuccess: () => {
       setName("");
       onClose();
     },
@@ -350,7 +384,27 @@ function FileItem({
       formData.append("name", newName);
       await renameFile(formData);
     },
-    onSuccess: () => {
+    onMutate: async (newName) => {
+      await queryClient.cancelQueries({ queryKey: ["sidebar"] });
+      const previousSidebar = queryClient.getQueryData(["sidebar"]);
+
+      queryClient.setQueryData(["sidebar"], (old: any) => {
+        if (!old) return old;
+        return {
+          ...old,
+          files: old.files.map((f: any) => (f.id === file.id ? { ...f, name: newName } : f)),
+        };
+      });
+
+      return { previousSidebar };
+    },
+    onError: (err, vars, context) => {
+      if (context?.previousSidebar) {
+        queryClient.setQueryData(["sidebar"], context.previousSidebar);
+      }
+      toast.error("Failed to rename file");
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["sidebar"] });
     },
   });
@@ -515,7 +569,27 @@ function FolderItem({ folder }: { folder: any }) {
       formData.append("name", newName);
       await renameFolder(formData);
     },
-    onSuccess: () => {
+    onMutate: async (newName) => {
+      await queryClient.cancelQueries({ queryKey: ["sidebar"] });
+      const previousSidebar = queryClient.getQueryData(["sidebar"]);
+
+      queryClient.setQueryData(["sidebar"], (old: any) => {
+        if (!old) return old;
+        return {
+          ...old,
+          folders: old.folders.map((f: any) => (f.id === folder.id ? { ...f, name: newName } : f)),
+        };
+      });
+
+      return { previousSidebar };
+    },
+    onError: (err, vars, context) => {
+      if (context?.previousSidebar) {
+        queryClient.setQueryData(["sidebar"], context.previousSidebar);
+      }
+      toast.error("Failed to rename folder");
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["sidebar"] });
     },
   });
@@ -527,12 +601,35 @@ function FolderItem({ folder }: { folder: any }) {
       formData.append("deleteFiles", String(deleteFiles));
       await deleteFolder(formData);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["sidebar"] });
-      // If we deleted the active folder view, redirect
+    onMutate: async (deleteFiles) => {
+      await queryClient.cancelQueries({ queryKey: ["sidebar"] });
+      const previousSidebar = queryClient.getQueryData(["sidebar"]);
+
+      queryClient.setQueryData(["sidebar"], (old: any) => {
+        if (!old) return old;
+        return {
+          ...old,
+          folders: old.folders.filter((f: any) => f.id !== folder.id),
+          // Optionally handle files if deleteFiles is true
+          files: deleteFiles ? old.files.filter((f: any) => f.folderId !== folder.id) : old.files,
+        };
+      });
+
+      // Redirect immediately if viewing this folder
       if (isActive) {
         router.push("/dashboard");
       }
+
+      return { previousSidebar };
+    },
+    onError: (err, vars, context) => {
+      if (context?.previousSidebar) {
+        queryClient.setQueryData(["sidebar"], context.previousSidebar);
+      }
+      toast.error("Failed to delete folder");
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["sidebar"] });
     },
   });
 

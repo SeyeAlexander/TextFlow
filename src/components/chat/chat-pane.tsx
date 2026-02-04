@@ -152,7 +152,10 @@ export function ChatPane({ documentId, documentName, onClose }: ChatPaneProps) {
   const [hasAvatar, setHasAvatar] = useState(false);
   const [messagesLoading, setMessagesLoading] = useState(true);
   const messageIdsRef = useRef<Set<string>>(new Set());
-  const channelRef = useRef<ReturnType<typeof createClient>["channel"] | null>(null);
+  const channelRef =
+    useRef<
+      ReturnType<typeof createClient> extends { channel: (...args: any) => infer R } ? R : never
+    >(null);
 
   // Check if user already has avatar
   useEffect(() => {
@@ -233,27 +236,22 @@ export function ChatPane({ documentId, documentName, onClose }: ChatPaneProps) {
           setMessages((prev) => {
             // Drop optimistic duplicate if it matches sender/content
             const deduped = prev.filter(
-              (m) =>
-                !(m.optimistic && m.senderId === full.senderId && m.content === full.content),
+              (m) => !(m.optimistic && m.senderId === full.senderId && m.content === full.content),
             );
             return [...deduped, full];
           });
         },
       )
-      .on(
-        "broadcast",
-        { event: "typing" },
-        (payload) => {
-          const { userId, name, isTyping } = (payload as any).payload || {};
-          if (!userId || userId === currentUser?.id) return;
-          setTypingUsers((prev) => {
-            const next = { ...prev };
-            if (isTyping) next[userId] = name || "Someone";
-            else delete next[userId];
-            return next;
-          });
-        },
-      )
+      .on("broadcast", { event: "typing" }, (payload) => {
+        const { userId, name, isTyping } = (payload as any).payload || {};
+        if (!userId || userId === currentUser?.id) return;
+        setTypingUsers((prev) => {
+          const next = { ...prev };
+          if (isTyping) next[userId] = name || "Someone";
+          else delete next[userId];
+          return next;
+        });
+      })
       .subscribe();
     channelRef.current = channel;
     const intervalId = setInterval(async () => {
@@ -313,7 +311,8 @@ export function ChatPane({ documentId, documentName, onClose }: ChatPaneProps) {
         event: "typing",
         payload: {
           userId: currentUser.id,
-          name: currentUser.user_metadata?.full_name || currentUser.email?.split("@")[0] || "Someone",
+          name:
+            currentUser.user_metadata?.full_name || currentUser.email?.split("@")[0] || "Someone",
           isTyping,
         },
       });

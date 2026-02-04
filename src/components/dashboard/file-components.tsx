@@ -141,9 +141,43 @@ function FileContextMenu({
       const { toggleStar } = await import("@/actions/document");
       await toggleStar(file.id);
     },
-    onSuccess: () => {
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: ["dashboard"] });
+      await queryClient.cancelQueries({ queryKey: ["sidebar"] });
+      const previousDashboard = queryClient.getQueryData(["dashboard"]);
+      const previousSidebar = queryClient.getQueryData(["sidebar"]);
+
+      // Optimistically toggle starred state
+      queryClient.setQueryData(["dashboard"], (old: any) => {
+        if (!old) return old;
+        return {
+          ...old,
+          files: old.files.map((f: any) => (f.id === file.id ? { ...f, starred: !f.starred } : f)),
+        };
+      });
+      queryClient.setQueryData(["sidebar"], (old: any) => {
+        if (!old) return old;
+        return {
+          ...old,
+          files: old.files.map((f: any) => (f.id === file.id ? { ...f, starred: !f.starred } : f)),
+        };
+      });
+
+      return { previousDashboard, previousSidebar };
+    },
+    onError: (err, vars, context) => {
+      if (context?.previousDashboard) {
+        queryClient.setQueryData(["dashboard"], context.previousDashboard);
+      }
+      if (context?.previousSidebar) {
+        queryClient.setQueryData(["sidebar"], context.previousSidebar);
+      }
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       queryClient.invalidateQueries({ queryKey: ["sidebar"] });
+    },
+    onSuccess: () => {
       onClose();
     },
   });
@@ -155,9 +189,42 @@ function FileContextMenu({
       formData.append("name", name);
       await renameFile(formData);
     },
-    onSuccess: () => {
+    onMutate: async (name) => {
+      await queryClient.cancelQueries({ queryKey: ["dashboard"] });
+      await queryClient.cancelQueries({ queryKey: ["sidebar"] });
+      const previousDashboard = queryClient.getQueryData(["dashboard"]);
+      const previousSidebar = queryClient.getQueryData(["sidebar"]);
+
+      queryClient.setQueryData(["dashboard"], (old: any) => {
+        if (!old) return old;
+        return {
+          ...old,
+          files: old.files.map((f: any) => (f.id === file.id ? { ...f, name } : f)),
+        };
+      });
+      queryClient.setQueryData(["sidebar"], (old: any) => {
+        if (!old) return old;
+        return {
+          ...old,
+          files: old.files.map((f: any) => (f.id === file.id ? { ...f, name } : f)),
+        };
+      });
+
+      return { previousDashboard, previousSidebar };
+    },
+    onError: (err, vars, context) => {
+      if (context?.previousDashboard) {
+        queryClient.setQueryData(["dashboard"], context.previousDashboard);
+      }
+      if (context?.previousSidebar) {
+        queryClient.setQueryData(["sidebar"], context.previousSidebar);
+      }
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       queryClient.invalidateQueries({ queryKey: ["sidebar"] });
+    },
+    onSuccess: () => {
       setIsRenaming(false);
       onClose();
     },
@@ -169,9 +236,42 @@ function FileContextMenu({
       formData.append("id", file.id);
       await deleteFile(formData);
     },
-    onSuccess: () => {
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: ["dashboard"] });
+      await queryClient.cancelQueries({ queryKey: ["sidebar"] });
+      const previousDashboard = queryClient.getQueryData(["dashboard"]);
+      const previousSidebar = queryClient.getQueryData(["sidebar"]);
+
+      queryClient.setQueryData(["dashboard"], (old: any) => {
+        if (!old) return old;
+        return {
+          ...old,
+          files: old.files.filter((f: any) => f.id !== file.id),
+        };
+      });
+      queryClient.setQueryData(["sidebar"], (old: any) => {
+        if (!old) return old;
+        return {
+          ...old,
+          files: old.files.filter((f: any) => f.id !== file.id),
+        };
+      });
+
+      return { previousDashboard, previousSidebar };
+    },
+    onError: (err, vars, context) => {
+      if (context?.previousDashboard) {
+        queryClient.setQueryData(["dashboard"], context.previousDashboard);
+      }
+      if (context?.previousSidebar) {
+        queryClient.setQueryData(["sidebar"], context.previousSidebar);
+      }
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       queryClient.invalidateQueries({ queryKey: ["sidebar"] });
+    },
+    onSuccess: () => {
       onClose();
     },
   });
@@ -301,7 +401,38 @@ export function FileCard({ file, index = 0 }: { file: TextFlowFile; index?: numb
       const { toggleStar } = await import("@/actions/document");
       await toggleStar(file.id);
     },
-    onSuccess: () => {
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: ["dashboard"] });
+      await queryClient.cancelQueries({ queryKey: ["sidebar"] });
+      const previousDashboard = queryClient.getQueryData(["dashboard"]);
+      const previousSidebar = queryClient.getQueryData(["sidebar"]);
+
+      queryClient.setQueryData(["dashboard"], (old: any) => {
+        if (!old) return old;
+        return {
+          ...old,
+          files: old.files.map((f: any) => (f.id === file.id ? { ...f, starred: !f.starred } : f)),
+        };
+      });
+      queryClient.setQueryData(["sidebar"], (old: any) => {
+        if (!old) return old;
+        return {
+          ...old,
+          files: old.files.map((f: any) => (f.id === file.id ? { ...f, starred: !f.starred } : f)),
+        };
+      });
+
+      return { previousDashboard, previousSidebar };
+    },
+    onError: (err, vars, context) => {
+      if (context?.previousDashboard) {
+        queryClient.setQueryData(["dashboard"], context.previousDashboard);
+      }
+      if (context?.previousSidebar) {
+        queryClient.setQueryData(["sidebar"], context.previousSidebar);
+      }
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       queryClient.invalidateQueries({ queryKey: ["sidebar"] });
     },
@@ -410,9 +541,42 @@ function FolderContextMenu({
       formData.append("name", name);
       await renameFolder(formData);
     },
-    onSuccess: () => {
+    onMutate: async (name) => {
+      await queryClient.cancelQueries({ queryKey: ["dashboard"] });
+      await queryClient.cancelQueries({ queryKey: ["sidebar"] });
+      const previousDashboard = queryClient.getQueryData(["dashboard"]);
+      const previousSidebar = queryClient.getQueryData(["sidebar"]);
+
+      queryClient.setQueryData(["dashboard"], (old: any) => {
+        if (!old) return old;
+        return {
+          ...old,
+          folders: old.folders.map((f: any) => (f.id === folder.id ? { ...f, name } : f)),
+        };
+      });
+      queryClient.setQueryData(["sidebar"], (old: any) => {
+        if (!old) return old;
+        return {
+          ...old,
+          folders: old.folders.map((f: any) => (f.id === folder.id ? { ...f, name } : f)),
+        };
+      });
+
+      return { previousDashboard, previousSidebar };
+    },
+    onError: (err, vars, context) => {
+      if (context?.previousDashboard) {
+        queryClient.setQueryData(["dashboard"], context.previousDashboard);
+      }
+      if (context?.previousSidebar) {
+        queryClient.setQueryData(["sidebar"], context.previousSidebar);
+      }
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       queryClient.invalidateQueries({ queryKey: ["sidebar"] });
+    },
+    onSuccess: () => {
       setIsRenaming(false);
       onClose();
     },
@@ -510,9 +674,44 @@ export function FolderCard({
       formData.append("deleteFiles", String(deleteFiles));
       await deleteFolder(formData);
     },
-    onSuccess: () => {
+    onMutate: async (deleteFiles) => {
+      await queryClient.cancelQueries({ queryKey: ["dashboard"] });
+      await queryClient.cancelQueries({ queryKey: ["sidebar"] });
+      const previousDashboard = queryClient.getQueryData(["dashboard"]);
+      const previousSidebar = queryClient.getQueryData(["sidebar"]);
+
+      queryClient.setQueryData(["dashboard"], (old: any) => {
+        if (!old) return old;
+        return {
+          ...old,
+          folders: old.folders.filter((f: any) => f.id !== folder.id),
+          files: deleteFiles ? old.files.filter((f: any) => f.folderId !== folder.id) : old.files,
+        };
+      });
+      queryClient.setQueryData(["sidebar"], (old: any) => {
+        if (!old) return old;
+        return {
+          ...old,
+          folders: old.folders.filter((f: any) => f.id !== folder.id),
+          files: deleteFiles ? old.files.filter((f: any) => f.folderId !== folder.id) : old.files,
+        };
+      });
+
+      return { previousDashboard, previousSidebar };
+    },
+    onError: (err, vars, context) => {
+      if (context?.previousDashboard) {
+        queryClient.setQueryData(["dashboard"], context.previousDashboard);
+      }
+      if (context?.previousSidebar) {
+        queryClient.setQueryData(["sidebar"], context.previousSidebar);
+      }
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       queryClient.invalidateQueries({ queryKey: ["sidebar"] });
+    },
+    onSuccess: () => {
       setShowDeleteModal(false);
     },
   });
@@ -581,7 +780,38 @@ export function FileList({ files }: { files: TextFlowFile[] }) {
       const { toggleStar } = await import("@/actions/document");
       await toggleStar(fileId);
     },
-    onSuccess: () => {
+    onMutate: async (fileId) => {
+      await queryClient.cancelQueries({ queryKey: ["dashboard"] });
+      await queryClient.cancelQueries({ queryKey: ["sidebar"] });
+      const previousDashboard = queryClient.getQueryData(["dashboard"]);
+      const previousSidebar = queryClient.getQueryData(["sidebar"]);
+
+      queryClient.setQueryData(["dashboard"], (old: any) => {
+        if (!old) return old;
+        return {
+          ...old,
+          files: old.files.map((f: any) => (f.id === fileId ? { ...f, starred: !f.starred } : f)),
+        };
+      });
+      queryClient.setQueryData(["sidebar"], (old: any) => {
+        if (!old) return old;
+        return {
+          ...old,
+          files: old.files.map((f: any) => (f.id === fileId ? { ...f, starred: !f.starred } : f)),
+        };
+      });
+
+      return { previousDashboard, previousSidebar };
+    },
+    onError: (err, vars, context) => {
+      if (context?.previousDashboard) {
+        queryClient.setQueryData(["dashboard"], context.previousDashboard);
+      }
+      if (context?.previousSidebar) {
+        queryClient.setQueryData(["sidebar"], context.previousSidebar);
+      }
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       queryClient.invalidateQueries({ queryKey: ["sidebar"] });
     },
@@ -656,7 +886,13 @@ export function FileList({ files }: { files: TextFlowFile[] }) {
 
               {/* Modified */}
               <div className='w-28 text-right text-[11px] text-muted-foreground'>
-                <RelativeTime iso={file.updatedAt} />
+                <RelativeTime
+                  iso={
+                    typeof file.updatedAt === "string"
+                      ? file.updatedAt
+                      : file.updatedAt.toISOString()
+                  }
+                />
               </div>
 
               {/* Actions */}
