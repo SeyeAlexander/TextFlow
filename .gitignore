@@ -40,3 +40,7 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 INTERVIEW_PREP.md
+BEETECHY_INTERVIEW.md
+
+# Interview prep files
+interview-prep/

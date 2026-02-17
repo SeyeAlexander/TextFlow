@@ -49,6 +49,7 @@ import {
 import { MailCheckIcon, type MailCheckIconHandle } from "@/components/animatedicons/mail-check";
 import { useUser } from "@/hooks/use-user";
 import { InboxPopover } from "./inbox-popover";
+import { createClient } from "@/utils/supabase/client";
 
 // Unified button styling constants
 const BUTTON_STYLE = "flex items-center gap-2 rounded-md px-2 py-1.5 text-[13px] transition-colors";
@@ -848,6 +849,7 @@ function DiscussionsSection({ isOpen }: { isOpen: boolean }) {
     queryKey: ["chats"],
     queryFn: getChats,
     enabled: !!user,
+    refetchInterval: 5000,
   });
 
   const displayDocs = chats.slice(0, 5);
@@ -1366,6 +1368,7 @@ function ExpandedSidebar({
 export function AppSidebar({ collapsed }: { collapsed: boolean }) {
   const { currentView, setView, setSearchOpen, setSettingsOpen, toggleSidebar } =
     useTextFlowStore();
+  const { user } = useUser();
 
   const { data: sidebarData } = useQuery({
     queryKey: ["sidebar"],
@@ -1382,6 +1385,59 @@ export function AppSidebar({ collapsed }: { collapsed: boolean }) {
   const [inboxOpen, setInboxOpen] = useState(false);
   const queryClient = useQueryClient();
   const router = useRouter();
+
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`sidebar-sync:${user.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "document_collaborators",
+          filter: `user_id=eq.${user.id}`,
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["sidebar"] });
+          queryClient.invalidateQueries({ queryKey: ["chats"] });
+          queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+        },
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "DELETE",
+          schema: "public",
+          table: "document_collaborators",
+          filter: `user_id=eq.${user.id}`,
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["sidebar"] });
+          queryClient.invalidateQueries({ queryKey: ["chats"] });
+          queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+        },
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "chat_participants",
+          filter: `user_id=eq.${user.id}`,
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["chats"] });
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id, queryClient]);
 
   const createFileMutation = useMutation({
     mutationFn: async ({ name, id }: { name: string; id: string }) => {
@@ -1401,11 +1457,12 @@ export function AppSidebar({ collapsed }: { collapsed: boolean }) {
     },
   });
 
-  const handleNewDocument = (e?: React.MouseEvent) => {
+  const handleNewDocument = async (e?: React.MouseEvent) => {
     if (e) {
       e.preventDefault();
       e.stopPropagation();
     }
+    if (createFileMutation.isPending) return;
 
     // Generate ID and navigate immediately
     const tempId = crypto.randomUUID();
@@ -1420,63 +1477,21 @@ export function AppSidebar({ collapsed }: { collapsed: boolean }) {
       while (existingNames.has(`${baseName} (${i})`)) i += 1;
       nextName = `${baseName} (${i})`;
     }
-    const emptyLexicalState = {
-      root: {
-        children: [
-          {
-            children: [],
-            direction: null,
-            format: "",
-            indent: 0,
-            type: "paragraph",
-            version: 1,
-          },
-        ],
-        direction: null,
-        format: "",
-        indent: 0,
-        type: "root",
-        version: 1,
-      },
-    };
+    const loadingToastId = toast.loading("Creating document...");
+    try {
+      const result = await createFileMutation.mutateAsync({ name: nextName, id: tempId });
+      if (!result?.success) {
+        toast.error(result?.error || "Failed to create document", { id: loadingToastId });
+        return;
+      }
 
-    // Optimistically update sidebar
-    queryClient.setQueryData(["sidebar"], (old: any) => {
-      if (!old) return old;
-      return {
-        ...old,
-        files: [
-          {
-            id: tempId,
-            name: nextName,
-            updatedAt: new Date().toISOString(),
-            ownerId: "user", // placeholder
-            content: emptyLexicalState,
-            starred: false,
-            shared: false,
-          },
-          ...(old.files || []),
-        ],
-      };
-    });
-
-    // Optimistically initiate document cache to prevent 404
-    queryClient.setQueryData(["document", tempId], {
-      id: tempId,
-      name: nextName,
-      content: emptyLexicalState,
-      updatedAt: new Date().toISOString(),
-      ownerId: "user",
-      starred: false,
-      shared: false,
-    });
-
-    // Navigate immediately
-    router.push(`/dashboard/document/${tempId}`);
-
-    // Fire mutation in background
-    createFileMutation.mutate({ name: nextName, id: tempId });
-    toast.success("Document created");
+      queryClient.invalidateQueries({ queryKey: ["sidebar"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      router.push(`/dashboard/document/${tempId}`);
+      toast.success("Document created", { id: loadingToastId });
+    } catch {
+      toast.error("Failed to create document", { id: loadingToastId });
+    }
   };
 
   const handleNavigation = (view: string) => {

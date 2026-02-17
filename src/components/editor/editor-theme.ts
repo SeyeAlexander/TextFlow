@@ -64,4 +64,10 @@ export const editorTheme = {
     url: "editor-tokenOperator",
     variable: "editor-tokenVariable",
   },
+  // Collaboration cursor classes - these are used by @lexical/yjs
+  cursor: {
+    caret: "yjs-cursor-caret",
+    caretLabel: "yjs-cursor-label",
+    selection: "yjs-cursor-selection",
+  },
 };

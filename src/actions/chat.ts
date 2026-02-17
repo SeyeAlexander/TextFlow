@@ -259,18 +259,42 @@ export async function sendMessage(chatId: string, content: string) {
 
     if (membership.length === 0) return { error: "Access denied" };
 
-    // Insert message
-    await db.insert(messages).values({
-      chatId,
-      senderId: user.id,
-      content,
-    });
+    // Insert message and return it so sender can reconcile optimistic UI immediately.
+    const [inserted] = await db
+      .insert(messages)
+      .values({
+        chatId,
+        senderId: user.id,
+        content,
+      })
+      .returning({
+        id: messages.id,
+        content: messages.content,
+        createdAt: messages.createdAt,
+        senderId: messages.senderId,
+      });
 
     // Update chat timestamp
     await db.update(chats).set({ updatedAt: new Date() }).where(eq(chats.id, chatId));
 
     revalidatePath(`/dashboard/messages/${chatId}`);
-    return { success: true };
+    const [senderProfile] = await db
+      .select({
+        senderName: profiles.fullName,
+        senderAvatar: profiles.avatarUrl,
+      })
+      .from(profiles)
+      .where(eq(profiles.id, user.id))
+      .limit(1);
+
+    return {
+      success: true,
+      message: {
+        ...inserted,
+        senderName: senderProfile?.senderName || user.email?.split("@")[0] || "You",
+        senderAvatar: senderProfile?.senderAvatar || null,
+      },
+    };
   } catch (error) {
     console.error("Send message error:", error);
     return { error: "Failed to send message" };

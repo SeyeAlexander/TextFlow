@@ -26,6 +26,8 @@ import { CodeActionMenuPlugin } from "./plugins/code-action-menu-plugin";
 import { CodeHighlightPlugin } from "./plugins/code-highlight-plugin";
 import { AutoNamePlugin } from "./plugins/auto-name-plugin";
 import { ToolbarPlugin } from "./plugins/toolbar-plugin";
+import { CollaborationWrapper } from "./plugins/collaboration-plugin";
+import type { SyncStatus } from "@/lib/sync/types";
 
 // Plugin to capture changes and export JSON
 function OnChangePlugin({ onChange }: { onChange: (json: string) => void }) {
@@ -55,6 +57,13 @@ interface EditorProps {
   readOnly?: boolean;
   documentId?: string;
   enableAutoName?: boolean;
+  // Collaboration props
+  collaborative?: boolean;
+  userId?: string;
+  userName?: string;
+  userAvatarUrl?: string;
+  onSyncStatusChange?: (status: SyncStatus) => void;
+  onAwarenessChange?: (states: Map<number, unknown>) => void;
 }
 
 // Plugin to expose editor to window for debugging
@@ -108,30 +117,37 @@ export function Editor({
   readOnly = false,
   documentId,
   enableAutoName = true,
+  // Collaboration props
+  collaborative = false,
+  userId,
+  userName,
+  userAvatarUrl,
+  onSyncStatusChange,
+  onAwarenessChange,
 }: EditorProps) {
   const initialConfig = {
     namespace: "TextFlowEditor",
     theme: editorTheme,
-    // Initialize with JSON content ONLY if it is valid JSON string
-    editorState: (editor: any) => {
-      if (initialContent) {
-        try {
-          const parsed = JSON.parse(initialContent);
-          // console.log("Initializing Editor with:", parsed); // Debug
-
-          if (parsed.root) {
-            const state = editor.parseEditorState(initialContent);
-            return state;
-          } else {
-            console.warn("Parsed content missing root:", parsed);
+    // CRITICAL: For collaboration, editorState must be null
+    // CollaborationPlugin will handle state initialization from Y.js
+    editorState: collaborative
+      ? null
+      : (editor: any) => {
+          if (initialContent) {
+            try {
+              const parsed = JSON.parse(initialContent);
+              if (parsed.root) {
+                const state = editor.parseEditorState(initialContent);
+                return state;
+              } else {
+                console.warn("Parsed content missing root:", parsed);
+              }
+            } catch (e) {
+              console.error("Failed to parse initialContent:", e);
+              return;
+            }
           }
-        } catch (e) {
-          console.error("Failed to parse initialContent:", e);
-          // Not JSON, ignore and start empty
-          return;
-        }
-      }
-    },
+        },
     onError: (error: Error) => {
       console.error("Lexical Error:", error);
     },
@@ -154,7 +170,7 @@ export function Editor({
   return (
     <LexicalComposer initialConfig={initialConfig}>
       <DebugExposePlugin />
-      <LoadInitialContentPlugin initialContent={initialContent} />
+      {!collaborative && <LoadInitialContentPlugin initialContent={initialContent} />}
       <div className='relative w-full h-full flex flex-col dark:bg-[#0A0A0A] bg-white'>
         {/* Floating Toolbar and Slash Commands replace fixed toolbar */}
         {!readOnly && (
@@ -178,7 +194,20 @@ export function Editor({
             }
             ErrorBoundary={LexicalErrorBoundary}
           />
-          <HistoryPlugin />
+          {/* Use HistoryPlugin for solo editing, CollaborationWrapper for collaborative */}
+          {collaborative && documentId && userId && userName ? (
+            <CollaborationWrapper
+              documentId={documentId}
+              initialContent={initialContent}
+              userId={userId}
+              userName={userName}
+              userAvatarUrl={userAvatarUrl}
+              onStatusChange={onSyncStatusChange}
+              onAwarenessChange={onAwarenessChange}
+            />
+          ) : (
+            <HistoryPlugin />
+          )}
           <AutoFocusPlugin />
           <ListPlugin />
           <LinkPlugin />
@@ -188,7 +217,8 @@ export function Editor({
 
           {/* Custom Plugins */}
           {documentId && enableAutoName && <AutoNamePlugin documentId={documentId} />}
-          {onChange && <OnChangePlugin onChange={onChange} />}
+          {/* Only use OnChangePlugin when NOT in collaborative mode */}
+          {!collaborative && onChange && <OnChangePlugin onChange={onChange} />}
         </div>
       </div>
     </LexicalComposer>

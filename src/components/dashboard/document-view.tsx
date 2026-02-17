@@ -1,13 +1,12 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ChevronLeft,
   Star,
   Share2,
-  Save,
   X,
   Check,
   Globe,
@@ -18,13 +17,14 @@ import {
 import { useTextFlowStore } from "@/store/store";
 import { ChatPane } from "@/components/chat";
 import { Editor } from "@/components/editor/editor";
-import { ErrorState } from "@/components/dashboard/error-state";
 import { useQuery } from "@tanstack/react-query";
 import { fetchDocumentById } from "@/actions/data";
-import { saveDocument, toggleStar, shareDocumentByEmail } from "@/actions/document";
+import { toggleStar, shareDocumentByEmail } from "@/actions/document";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useUser } from "@/hooks/use-user";
+import type { SyncStatus, AwarenessState } from "@/lib/sync/types";
 
 // Crosshairs Component
 function Crosshairs() {
@@ -86,7 +86,6 @@ function SharePopover({
   onClose: () => void;
   file: { id: string; shared: boolean };
 }) {
-  const sidebarCollapsed = useTextFlowStore((s) => s.sidebarCollapsed);
   const queryClient = useQueryClient();
   const [email, setEmail] = useState("");
   const [isPublic, setIsPublic] = useState(file.shared);
@@ -215,12 +214,12 @@ export function DocumentView({ fileId }: { fileId: string }) {
   const setActiveChatDocument = useTextFlowStore((s) => s.setActiveChatDocument);
   const queryClient = useQueryClient();
 
-  const saveMutation = useMutation({
-    mutationFn: ({ id, content }: { id: string; content: string }) => saveDocument(id, content),
-    onSuccess: () => {
-      // No need to invalidate for every save to avoid flicker
-    },
-  });
+  // Get current user for collaboration
+  const { user, loading: userLoading } = useUser();
+
+  // Collaboration state
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>("disconnected");
+  const [awarenessStates, setAwarenessStates] = useState<Map<number, AwarenessState>>(new Map());
 
   const starMutation = useMutation({
     mutationFn: () => toggleStar(fileId),
@@ -278,32 +277,13 @@ export function DocumentView({ fileId }: { fileId: string }) {
     },
   });
 
-  const [isSaving, setIsSaving] = useState(false);
-  const [isDirty, setIsDirty] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [documentTitle, setDocumentTitle] = useState("");
-  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
-
-  const isDeletedRef = useRef(false);
-  const latestContentRef = useRef<string | null>(null);
-  const lastSavedRef = useRef<string | null>(null);
-  const renameTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const renameInFlightRef = useRef(false);
-  const autosaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const lastActivityRef = useRef<number>(Date.now());
-  const AUTOSAVE_DELAY = 3000; // 3 seconds after typing stops
-  const IDLE_TIMEOUT = 60000; // 60 seconds of no activity = pause autosave
 
   // Initialize title
   useEffect(() => {
     if (file) {
       setDocumentTitle(file.name);
-      if (file.content) {
-        const serialized =
-          typeof file.content === "string" ? file.content : JSON.stringify(file.content);
-        lastSavedRef.current = serialized;
-        setIsDirty(false);
-      }
     }
   }, [file]);
 
@@ -319,174 +299,6 @@ export function DocumentView({ fileId }: { fileId: string }) {
     }
   }, [file, setChatOpen, setActiveChatDocument]);
 
-  // Autosave function - separate from manual save for different UX
-  const performAutosave = useCallback(async () => {
-    if (isDeletedRef.current) return;
-    const latest = latestContentRef.current;
-    if (!latest || latest === lastSavedRef.current) return;
-
-    setSaveStatus("saving");
-    try {
-      await saveMutation.mutateAsync({ id: fileId, content: latest });
-      lastSavedRef.current = latest;
-      setIsDirty(false);
-      setSaveStatus("saved");
-      // Reset to idle after 2s
-      setTimeout(() => setSaveStatus("idle"), 2000);
-    } catch {
-      setSaveStatus("idle"); // Silent fail for autosave, manual save shows toast
-    }
-  }, [fileId, saveMutation]);
-
-  const handleContentChange = useCallback(
-    (content: string) => {
-      // If deleted, do not save
-      if (isDeletedRef.current) return;
-
-      latestContentRef.current = content;
-      lastActivityRef.current = Date.now();
-
-      if (content === lastSavedRef.current) {
-        return;
-      }
-      setIsDirty(true);
-
-      // Schedule autosave (debounced)
-      if (autosaveTimeoutRef.current) {
-        clearTimeout(autosaveTimeoutRef.current);
-      }
-      autosaveTimeoutRef.current = setTimeout(() => {
-        // Check if still active (not idle for too long)
-        const timeSinceActivity = Date.now() - lastActivityRef.current;
-        if (timeSinceActivity < IDLE_TIMEOUT) {
-          performAutosave();
-        }
-      }, AUTOSAVE_DELAY);
-
-      const isGenericName =
-        /^(New Document|New Document \\(\\d+\\)|New\\(\\d+\\)|New|Untitled)$/i.test(documentTitle);
-      if (isGenericName) {
-        if (renameTimeoutRef.current) {
-          clearTimeout(renameTimeoutRef.current);
-        }
-        renameTimeoutRef.current = setTimeout(async () => {
-          if (renameInFlightRef.current) return;
-          let firstLine = "";
-          try {
-            const parsed = JSON.parse(content);
-            if (parsed?.root?.children?.length) {
-              const firstNode = parsed.root.children[0];
-              if (Array.isArray(firstNode?.children)) {
-                firstLine = firstNode.children
-                  .map((c: any) => c?.text || "")
-                  .join("")
-                  .trim()
-                  .substring(0, 50);
-              } else if (firstNode?.text) {
-                firstLine = String(firstNode.text).trim().substring(0, 50);
-              }
-            }
-          } catch {
-            return;
-          }
-          if (!firstLine) return;
-          renameInFlightRef.current = true;
-          try {
-            const { renameFile } = await import("@/actions/files");
-            const formData = new FormData();
-            formData.append("id", fileId);
-            formData.append("name", firstLine);
-            await renameFile(formData);
-            setDocumentTitle(firstLine);
-            queryClient.setQueryData(["document", fileId], (old: any) =>
-              old ? { ...old, name: firstLine } : old,
-            );
-            queryClient.invalidateQueries({ queryKey: ["sidebar"] });
-          } finally {
-            renameInFlightRef.current = false;
-          }
-        }, 5000);
-      }
-    },
-    [documentTitle, fileId, queryClient, performAutosave],
-  );
-
-  const handleManualSave = useCallback(
-    async (options?: { showToast?: boolean }) => {
-      if (isDeletedRef.current) return;
-      const latest = latestContentRef.current;
-      if (!latest || latest === lastSavedRef.current) {
-        setIsDirty(false);
-        if (options?.showToast) {
-          toast.message("No changes to save");
-        }
-        return;
-      }
-
-      setIsSaving(true);
-      try {
-        const parsed = JSON.parse(latest);
-        const isGenericName = /^(New Document|New\(\d+\)|New|Untitled)$/i.test(documentTitle);
-        let firstLine = "";
-        if (parsed?.root?.children?.length) {
-          const firstNode = parsed.root.children[0];
-          if (Array.isArray(firstNode?.children)) {
-            firstLine = firstNode.children
-              .map((c: any) => c?.text || "")
-              .join("")
-              .trim()
-              .substring(0, 50);
-          } else if (firstNode?.text) {
-            firstLine = String(firstNode.text).trim().substring(0, 50);
-          }
-        }
-
-        if (isGenericName && firstLine) {
-          const { renameFile } = await import("@/actions/files");
-          const formData = new FormData();
-          formData.append("id", fileId);
-          formData.append("name", firstLine);
-          await renameFile(formData);
-          setDocumentTitle(firstLine);
-          queryClient.setQueryData(["document", fileId], (old: any) =>
-            old ? { ...old, name: firstLine } : old,
-          );
-          queryClient.invalidateQueries({ queryKey: ["sidebar"] });
-        }
-
-        await saveMutation.mutateAsync({ id: fileId, content: latest });
-        lastSavedRef.current = latest;
-        setIsDirty(false);
-        if (options?.showToast) {
-          toast.success("Saved");
-        }
-      } catch (error: any) {
-        if (error.message.includes("Unauthorized")) {
-          toast.error("Session expired. Please log in again.");
-        } else {
-          toast.error("Failed to save changes");
-        }
-      } finally {
-        setIsSaving(false);
-      }
-    },
-    [documentTitle, fileId, queryClient, saveMutation],
-  );
-
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      const isMac = navigator.platform.toLowerCase().includes("mac");
-      const isSave = (isMac ? event.metaKey : event.ctrlKey) && event.key.toLowerCase() === "s";
-
-      if (isSave) {
-        event.preventDefault();
-        handleManualSave({ showToast: true });
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [handleManualSave]);
 
   // Redirect if document not found (deleted)
   useEffect(() => {
@@ -495,7 +307,7 @@ export function DocumentView({ fileId }: { fileId: string }) {
     }
   }, [file, isLoading, router]);
 
-  if (isLoading) {
+  if (isLoading || userLoading) {
     return <DocumentLoading />;
   }
 
@@ -539,42 +351,58 @@ export function DocumentView({ fileId }: { fileId: string }) {
                   className='text-sm font-medium'
                 >
                   {documentTitle}
-                  {isDirty && (
-                    <span
-                      className='ml-2 inline-block size-2 rounded-full bg-amber-400 align-middle'
-                      aria-label='Unsaved changes'
-                      title='Unsaved changes'
-                    />
-                  )}
                 </motion.h1>
                 <motion.p
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   className='text-[10px] text-muted-foreground flex items-center gap-1'
                 >
-                  {saveStatus === "saving" ? (
-                    <>
-                      <span className='size-1.5 rounded-full bg-blue-500 animate-pulse' />
-                      Saving...
-                    </>
-                  ) : saveStatus === "saved" ? (
-                    <>
-                      <span className='size-1.5 rounded-full bg-green-500' />
-                      Saved
-                    </>
-                  ) : isDirty ? (
-                    <>
-                      <span className='size-1.5 rounded-full bg-amber-400' />
-                      Unsaved
-                    </>
-                  ) : (
-                    "All changes saved"
-                  )}
+                  {syncStatus === "connecting"
+                    ? "Syncing..."
+                    : syncStatus === "connected"
+                      ? "Live sync active"
+                      : "Live sync idle"}
                 </motion.p>
               </div>
             </div>
 
             <div className='flex items-center gap-1'>
+              {/* Presence Avatars for collaborators */}
+              {file.shared && syncStatus === "connected" && (
+                <div className='flex items-center -space-x-2 mr-2'>
+                  {Array.from(awarenessStates.entries())
+                    .filter(([clientId, state]) => state.id !== user?.id)
+                    .slice(0, 3)
+                    .map(([clientId, state]) => (
+                      <div
+                        key={clientId}
+                        className={`size-7 rounded-full bg-linear-to-br ${state.gradient} ring-2 ring-white dark:ring-[#0A0A0A] flex items-center justify-center text-[10px] font-medium text-white`}
+                        title={state.name}
+                      >
+                        {state.name?.charAt(0)?.toUpperCase() || "?"}
+                      </div>
+                    ))}
+                  {awarenessStates.size > 4 && (
+                    <div className='size-7 rounded-full bg-gray-500 ring-2 ring-white dark:ring-[#0A0A0A] flex items-center justify-center text-[10px] font-medium text-white'>
+                      +{awarenessStates.size - 4}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Sync status indicator */}
+              {file.shared && (
+                <div
+                  className={`size-2 rounded-full mr-2 ${
+                    syncStatus === "connected"
+                      ? "bg-green-500"
+                      : syncStatus === "connecting"
+                        ? "bg-amber-500 animate-pulse"
+                        : "bg-gray-400"
+                  }`}
+                  title={`Sync: ${syncStatus}`}
+                />
+              )}
               <button
                 onClick={() => starMutation.mutate()}
                 className={`rounded-lg p-2 transition-colors ${
@@ -624,16 +452,6 @@ export function DocumentView({ fileId }: { fileId: string }) {
                 </button>
               )}
 
-              <button
-                onClick={() => handleManualSave({ showToast: true })}
-                disabled={!isDirty || isSaving}
-                className={`rounded-lg p-2 transition-colors hover:bg-black/5 dark:hover:bg-white/5 disabled:opacity-50 ${
-                  isSaving ? "animate-pulse" : ""
-                }`}
-                title='Save document'
-              >
-                <Save className='size-4 text-muted-foreground' />
-              </button>
             </div>
           </header>
 
@@ -645,13 +463,23 @@ export function DocumentView({ fileId }: { fileId: string }) {
             >
               {/* Lexical Editor */}
               <Editor
-                key={`${fileId}-${file.updatedAt || "na"}`}
+                key={fileId}
                 initialContent={
                   typeof file.content === "string" ? file.content : JSON.stringify(file.content)
                 }
-                onChange={handleContentChange}
                 documentId={fileId}
                 enableAutoName={false}
+                // Use Yjs as the single persistence/sync path for all authenticated documents.
+                collaborative={!!user}
+                userId={user?.id}
+                userName={
+                  user?.user_metadata?.full_name || user?.email?.split("@")[0] || "Anonymous"
+                }
+                userAvatarUrl={user?.user_metadata?.avatar_url}
+                onSyncStatusChange={setSyncStatus}
+                onAwarenessChange={(states) =>
+                  setAwarenessStates(states as Map<number, AwarenessState>)
+                }
               />
             </motion.div>
           </div>

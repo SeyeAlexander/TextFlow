@@ -242,6 +242,19 @@ export function ChatPane({ documentId, documentName, onClose }: ChatPaneProps) {
           });
         },
       )
+      .on("broadcast", { event: "message" }, (payload) => {
+        const incoming = (payload as any).payload?.message;
+        if (!incoming?.id) return;
+        if (incoming.senderId === currentUser?.id) return;
+        if (messageIdsRef.current.has(incoming.id)) return;
+        messageIdsRef.current.add(incoming.id);
+        setMessages((prev) => {
+          const deduped = prev.filter(
+            (m) => !(m.optimistic && m.senderId === incoming.senderId && m.content === incoming.content),
+          );
+          return [...deduped, incoming];
+        });
+      })
       .on("broadcast", { event: "typing" }, (payload) => {
         const { userId, name, isTyping } = (payload as any).payload || {};
         if (!userId || userId === currentUser?.id) return;
@@ -258,10 +271,14 @@ export function ChatPane({ documentId, documentName, onClose }: ChatPaneProps) {
       const fresh = await getMessages(chatId);
       if (cancelled) return;
       setMessages((prev) => {
-        const next = [...prev];
+        let next = [...prev];
         fresh.forEach((m) => {
           if (!messageIdsRef.current.has(m.id)) {
             messageIdsRef.current.add(m.id);
+            next = next.filter(
+              (existing) =>
+                !(existing.optimistic && existing.senderId === m.senderId && existing.content === m.content),
+            );
             next.push(m);
           }
         });
@@ -297,6 +314,29 @@ export function ChatPane({ documentId, documentName, onClose }: ChatPaneProps) {
       if (result?.error) {
         toast.error("Failed to send");
         setMessages((prev) => prev.filter((m) => m.id !== tempId));
+        return;
+      }
+
+      const confirmed = (result as any)?.message;
+      if (confirmed?.id) {
+        messageIdsRef.current.add(confirmed.id);
+        setMessages((prev) => {
+          const withoutOptimistic = prev.filter(
+            (m) =>
+              m.id !== tempId &&
+              !(m.optimistic && m.senderId === confirmed.senderId && m.content === confirmed.content),
+          );
+          if (withoutOptimistic.some((m) => m.id === confirmed.id)) {
+            return withoutOptimistic;
+          }
+          return [...withoutOptimistic, confirmed];
+        });
+
+        channelRef.current?.send({
+          type: "broadcast",
+          event: "message",
+          payload: { message: confirmed },
+        });
       }
     });
   };

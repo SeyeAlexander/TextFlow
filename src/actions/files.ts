@@ -6,6 +6,7 @@ import { documents } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import * as Y from "yjs";
 
 export async function createFile(formData: FormData) {
   const supabase = await createClient();
@@ -49,6 +50,7 @@ export async function createFile(formData: FormData) {
       name,
       folderId: folderId || null,
       content: emptyLexicalState,
+      yjsState: Buffer.from(Y.encodeStateAsUpdate(new Y.Doc())).toString("base64"),
     };
 
     // Use provided ID if available
