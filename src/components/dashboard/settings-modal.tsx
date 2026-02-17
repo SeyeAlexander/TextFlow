@@ -129,7 +129,7 @@ export function SettingsModal() {
                       transition={{ duration: 0.2 }}
                       className='overflow-hidden'
                     >
-                      <div className='mt-3 rounded-xl bg-black/[0.03] p-3 dark:bg-white/[0.03]'>
+                      <div className='mt-3 rounded-xl bg-black/3 p-3 dark:bg-white/3'>
                         <p className='mb-2 text-[11px] font-medium text-muted-foreground'>
                           Choose avatar
                         </p>

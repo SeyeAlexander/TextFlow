@@ -106,19 +106,39 @@ export class SupabaseYjsProvider extends Observable<string> {
       this.handleBroadcastMessage(payload as BroadcastMessage);
     });
 
+    // Global fallback: even if the channel never reaches SUBSCRIBED
+    // (e.g. on production where WebSocket may be slow/blocked),
+    // ensure the editor becomes usable.
+    this.syncFallbackTimeoutId = setTimeout(() => {
+      if (!this.synced) {
+        console.warn("[SupabaseYjs] Sync fallback fired - channel may not be fully connected");
+        this.markSynced();
+        // If status is still connecting, mark as connected so saves work
+        if (this.status === "connecting") {
+          this.setStatus("connected");
+        }
+      }
+    }, 2000);
+
     // Subscribe to channel
     this.channel.subscribe(async (status) => {
       if (status === "SUBSCRIBED") {
         this.setStatus("connected");
         // Request sync from other clients.
         this.requestSync();
-        // Fallback: if nobody answers quickly, allow local bootstrap.
-        this.syncFallbackTimeoutId = setTimeout(() => {
-          this.markSynced();
-        }, 600);
+        // Fast-track sync if nobody answers within 600ms
+        if (!this.synced) {
+          if (this.syncFallbackTimeoutId) {
+            clearTimeout(this.syncFallbackTimeoutId);
+          }
+          this.syncFallbackTimeoutId = setTimeout(() => {
+            this.markSynced();
+          }, 600);
+        }
       } else if (status === "CHANNEL_ERROR") {
-        this.setStatus("error");
-        this.emit("error", [new Error("Channel subscription failed")]);
+        console.error("[SupabaseYjs] Channel error, falling back to local-only mode");
+        this.setStatus("connected"); // Allow saves to work even without Realtime
+        this.markSynced();
       } else if (status === "CLOSED") {
         this.setStatus("disconnected");
       }
@@ -231,10 +251,15 @@ export class SupabaseYjsProvider extends Observable<string> {
     }
 
     // Debounce: save 3 seconds after last change
+    // Always save regardless of connection status - persistence doesn't require Realtime
     this.saveTimeoutId = setTimeout(() => {
       if (this.onSave) {
-        const state = Y.encodeStateAsUpdate(this.doc);
-        this.onSave(state);
+        try {
+          const state = Y.encodeStateAsUpdate(this.doc);
+          this.onSave(state);
+        } catch (error) {
+          console.error("[SupabaseYjs] Save failed:", error);
+        }
       }
     }, 3000);
   }
