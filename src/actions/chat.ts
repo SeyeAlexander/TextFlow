@@ -9,6 +9,7 @@ import {
   profiles,
   documentCollaborators,
   documents,
+  notifications,
 } from "@/db/schema";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -286,6 +287,51 @@ export async function sendMessage(chatId: string, content: string) {
       .from(profiles)
       .where(eq(profiles.id, user.id))
       .limit(1);
+
+    // Create notifications for other chat participants
+    try {
+      const otherParticipants = await db
+        .select({ userId: chatParticipants.userId })
+        .from(chatParticipants)
+        .where(and(eq(chatParticipants.chatId, chatId), ne(chatParticipants.userId, user.id)));
+
+      if (otherParticipants.length > 0) {
+        // Get document info from chat
+        const chat = await db
+          .select({ documentId: chats.documentId })
+          .from(chats)
+          .where(eq(chats.id, chatId))
+          .limit(1);
+
+        const documentId = chat[0]?.documentId;
+        let documentName = "Document";
+        if (documentId) {
+          const doc = await db
+            .select({ name: documents.name })
+            .from(documents)
+            .where(eq(documents.id, documentId))
+            .limit(1);
+          documentName = doc[0]?.name || "Document";
+        }
+
+        await db.insert(notifications).values(
+          otherParticipants.map((p) => ({
+            recipientId: p.userId,
+            senderId: user.id,
+            type: "message" as const,
+            data: {
+              chatId,
+              documentId,
+              documentName,
+              content: content.slice(0, 100),
+            },
+          })),
+        );
+      }
+    } catch (notifError) {
+      // Don't fail the message send if notification creation fails
+      console.error("Failed to create message notifications:", notifError);
+    }
 
     return {
       success: true,

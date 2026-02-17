@@ -110,7 +110,7 @@ export const documentCollaborators = pgTable(
   }),
 );
 
-export const notificationTypeEnum = pgEnum("notification_type", ["invite", "limit"]);
+export const notificationTypeEnum = pgEnum("notification_type", ["invite", "limit", "message"]);
 
 export const notifications = pgTable("notifications", {
   id: uuid("id").defaultRandom().primaryKey(),

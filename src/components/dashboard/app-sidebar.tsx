@@ -1113,9 +1113,10 @@ function CollapsedSidebar({
 
   const { user } = useUser();
   const { data: notifications = [] } = useQuery({
-    queryKey: ["notifications"],
+    queryKey: ["notifications-badge"],
     queryFn: getNotifications,
     enabled: !!user,
+    refetchInterval: 5000,
   });
 
   const unreadCount = notifications.filter((n: any) => !n.read).length;
@@ -1424,6 +1425,7 @@ export function AppSidebar({ collapsed }: { collapsed: boolean }) {
   const { data: sidebarData } = useQuery({
     queryKey: ["sidebar"],
     queryFn: fetchSidebarData,
+    refetchInterval: 5000,
   });
 
   const folders = sidebarData?.folders || [];
@@ -1480,6 +1482,20 @@ export function AppSidebar({ collapsed }: { collapsed: boolean }) {
           filter: `user_id=eq.${user.id}`,
         },
         () => {
+          queryClient.invalidateQueries({ queryKey: ["chats"] });
+        },
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "notifications",
+          filter: `recipient_id=eq.${user.id}`,
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["notifications"] });
+          queryClient.invalidateQueries({ queryKey: ["notifications-badge"] });
           queryClient.invalidateQueries({ queryKey: ["chats"] });
         },
       )

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -20,6 +20,7 @@ import { Editor } from "@/components/editor/editor";
 import { useQuery } from "@tanstack/react-query";
 import { fetchDocumentById } from "@/actions/data";
 import { toggleStar, shareDocumentByEmail } from "@/actions/document";
+import { renameFile } from "@/actions/files";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -280,13 +281,40 @@ export function DocumentView({ fileId }: { fileId: string }) {
 
   const [shareOpen, setShareOpen] = useState(false);
   const [documentTitle, setDocumentTitle] = useState("");
+  const [savedTitle, setSavedTitle] = useState("");
+  const titleInputRef = useRef<HTMLInputElement>(null);
 
   // Initialize title
   useEffect(() => {
     if (file) {
       setDocumentTitle(file.name);
+      setSavedTitle(file.name);
     }
   }, [file]);
+
+  const handleTitleRename = useCallback(async () => {
+    const trimmed = documentTitle.trim();
+    if (!trimmed || trimmed === savedTitle) {
+      setDocumentTitle(savedTitle);
+      return;
+    }
+    const formData = new FormData();
+    formData.set("id", fileId);
+    formData.set("name", trimmed);
+    const result = await renameFile(formData);
+    if (result?.error) {
+      toast.error(result.error);
+      setDocumentTitle(savedTitle);
+    } else {
+      setSavedTitle(trimmed);
+      // Optimistically update caches
+      queryClient.setQueryData(["document", fileId], (old: any) =>
+        old ? { ...old, name: trimmed } : old,
+      );
+      queryClient.invalidateQueries({ queryKey: ["sidebar"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+    }
+  }, [documentTitle, savedTitle, fileId, queryClient]);
 
   useEffect(() => {
     if (file && !file.shared) {
@@ -304,12 +332,13 @@ export function DocumentView({ fileId }: { fileId: string }) {
       setEditorBootstrapped(true);
       return;
     }
-    const timer = setTimeout(() => {
+    // Safety valve: if sync takes too long, show editor anyway with warning
+    const safety = setTimeout(() => {
       setEditorBootstrapped(true);
-    }, 1200);
-    return () => clearTimeout(timer);
+      toast.info("Sync is taking longer than usual. Your changes may not sync immediately.");
+    }, 8000);
+    return () => clearTimeout(safety);
   }, [syncStatus]);
-
 
   // Redirect if document not found (deleted)
   useEffect(() => {
@@ -358,13 +387,36 @@ export function DocumentView({ fileId }: { fileId: string }) {
                 {sidebarCollapsed ? "Expand" : "Collapse"}
               </button>
               <div className='ml-2'>
-                <motion.h1
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className='text-sm font-medium'
-                >
-                  {documentTitle}
-                </motion.h1>
+                {isOwner ? (
+                  <motion.input
+                    ref={titleInputRef}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    value={documentTitle}
+                    onChange={(e) => setDocumentTitle(e.target.value)}
+                    onBlur={handleTitleRename}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.currentTarget.blur();
+                      } else if (e.key === "Escape") {
+                        setDocumentTitle(savedTitle);
+                        e.currentTarget.blur();
+                      }
+                    }}
+                    onFocus={(e) => e.target.select()}
+                    className='text-sm font-medium bg-transparent outline-none border-b border-transparent focus:border-blue-400 dark:focus:border-blue-500 transition-colors w-48 truncate'
+                    placeholder='Untitled document'
+                    spellCheck={false}
+                  />
+                ) : (
+                  <motion.h1
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className='text-sm font-medium'
+                  >
+                    {documentTitle}
+                  </motion.h1>
+                )}
                 <motion.p
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
@@ -428,26 +480,28 @@ export function DocumentView({ fileId }: { fileId: string }) {
                 </button>
               )}
 
-              <div className='relative'>
-                <button
-                  onClick={() => setShareOpen(!shareOpen)}
-                  className={`rounded-lg p-2 transition-colors ${
-                    file.shared ? "text-blue-500" : "hover:bg-black/5 dark:hover:bg-white/5"
-                  }`}
-                  title='Share'
-                >
-                  <Share2 className='size-4' />
-                </button>
-                <AnimatePresence>
-                  {shareOpen && (
-                    <SharePopover
-                      isOpen={shareOpen}
-                      onClose={() => setShareOpen(false)}
-                      file={{ id: fileId, shared: file.shared }}
-                    />
-                  )}
-                </AnimatePresence>
-              </div>
+              {isOwner && (
+                <div className='relative'>
+                  <button
+                    onClick={() => setShareOpen(!shareOpen)}
+                    className={`rounded-lg p-2 transition-colors ${
+                      file.shared ? "text-blue-500" : "hover:bg-black/5 dark:hover:bg-white/5"
+                    }`}
+                    title='Share'
+                  >
+                    <Share2 className='size-4' />
+                  </button>
+                  <AnimatePresence>
+                    {shareOpen && (
+                      <SharePopover
+                        isOpen={shareOpen}
+                        onClose={() => setShareOpen(false)}
+                        file={{ id: fileId, shared: file.shared }}
+                      />
+                    )}
+                  </AnimatePresence>
+                </div>
+              )}
 
               <div id='editor-undo-redo-slot' className='mr-1' />
 
@@ -468,7 +522,6 @@ export function DocumentView({ fileId }: { fileId: string }) {
                   <MessageCircle className='size-4' />
                 </button>
               )}
-
             </div>
           </header>
 
@@ -479,7 +532,7 @@ export function DocumentView({ fileId }: { fileId: string }) {
               transition={{ type: "spring", stiffness: 300, damping: 30 }}
             >
               {!editorBootstrapped && (
-                <div className='absolute inset-0 z-20 bg-white/85 dark:bg-[#0A0A0A]/85 backdrop-blur-[1px]'>
+                <div className='absolute inset-0 z-20 bg-white dark:bg-[#0A0A0A]'>
                   <div className='h-full px-20 py-12 space-y-4'>
                     <Skeleton className='h-8 w-2/5 bg-black/6 dark:bg-white/8' />
                     <Skeleton className='h-4 w-full bg-black/6 dark:bg-white/8' />

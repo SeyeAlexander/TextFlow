@@ -1,11 +1,13 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Bell, Check, Inbox, MessageSquare, FileText, X } from "lucide-react";
+import { Bell, Check, Inbox, MessageSquare, FileText, X, User } from "lucide-react";
 import { formatRelativeTime } from "@/lib/utils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getNotifications, markAsRead, markAllAsRead } from "@/actions/notifications";
 import { toast } from "sonner";
+import { useTextFlowStore } from "@/store/store";
+import { useRouter } from "next/navigation";
 
 interface NotificationsPopoverProps {
   isOpen: boolean;
@@ -14,6 +16,7 @@ interface NotificationsPopoverProps {
 
 export function NotificationsPopover({ isOpen, onClose }: NotificationsPopoverProps) {
   const queryClient = useQueryClient();
+  const router = useRouter();
 
   // Fetch notifications
   const { data: notifications = [] } = useQuery({
@@ -26,24 +29,23 @@ export function NotificationsPopover({ isOpen, onClose }: NotificationsPopoverPr
         type: n.type,
         user: {
           name: n.senderName || "Unknown User",
-          avatar:
-            n.senderAvatar ||
-            `https://api.dicebear.com/7.x/avataaars/svg?seed=${n.senderName || "User"}`,
+          avatarUrl: n.senderAvatar || null,
         },
         // content text based on type
         content:
-          n.type === "mention"
-            ? "mentioned you in"
-            : n.type === "comment"
-              ? "commented on"
-              : "shared a document",
+          n.type === "message"
+            ? "sent a message in"
+            : n.type === "mention"
+              ? "mentioned you in"
+              : n.type === "comment"
+                ? "commented on"
+                : "shared a document",
         target: n.data?.documentName || "Document",
+        documentId: n.data?.documentId || null,
         time: n.createdAt,
         read: n.isRead,
       }));
     },
-    // Only fetch when open or initially to show badges else where
-    // For now standard fetch
   });
 
   const markReadMutation = useMutation({
@@ -62,6 +64,22 @@ export function NotificationsPopover({ isOpen, onClose }: NotificationsPopoverPr
       queryClient.invalidateQueries({ queryKey: ["sidebar"] });
     },
   });
+
+  const handleNotificationClick = (notification: any) => {
+    if (!notification.read) {
+      markReadMutation.mutate(notification.id);
+    }
+    if (notification.documentId) {
+      router.push(`/dashboard/document/${notification.documentId}`);
+      if (notification.type === "message") {
+        // Auto-open chat pane when clicking a message notification
+        const { setChatOpen, setActiveChatDocument } = useTextFlowStore.getState();
+        setActiveChatDocument(notification.documentId);
+        setChatOpen(true);
+      }
+      onClose();
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -111,17 +129,30 @@ export function NotificationsPopover({ isOpen, onClose }: NotificationsPopoverPr
               {notifications.map((notification: any) => (
                 <button
                   key={notification.id}
-                  onClick={() => !notification.read && markReadMutation.mutate(notification.id)}
+                  onClick={() => handleNotificationClick(notification)}
                   className={`w-full text-left p-3 transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50 flex gap-3 ${
                     !notification.read ? "bg-blue-50/50 dark:bg-blue-500/5" : ""
                   }`}
                 >
                   <div className='relative shrink-0'>
-                    <img
-                      src={notification.user.avatar}
-                      alt={notification.user.name}
-                      className='size-8 rounded-full bg-neutral-200 dark:bg-neutral-700'
-                    />
+                    <div className='size-8 rounded-full overflow-hidden'>
+                      {notification.user.avatarUrl &&
+                      notification.user.avatarUrl.startsWith("http") ? (
+                        <img
+                          src={notification.user.avatarUrl}
+                          alt={notification.user.name}
+                          className='size-full object-cover'
+                        />
+                      ) : notification.user.avatarUrl ? (
+                        <div
+                          className={`size-full rounded-full bg-linear-to-br ${notification.user.avatarUrl}`}
+                        />
+                      ) : (
+                        <div className='flex size-full items-center justify-center rounded-full bg-linear-to-br from-purple-500 to-blue-500'>
+                          <User className='size-3.5 text-white' />
+                        </div>
+                      )}
+                    </div>
                     {!notification.read && (
                       <div className='absolute -top-0.5 -right-0.5 size-2.5 rounded-full bg-blue-500 ring-2 ring-white dark:ring-[#1a1a1a]' />
                     )}
@@ -137,10 +168,13 @@ export function NotificationsPopover({ isOpen, onClose }: NotificationsPopoverPr
                       <span className='font-medium text-blue-500'>{notification.target}</span>
                     </p>
                     <div className='flex items-center gap-1 mt-1'>
+                      {notification.type === "message" && (
+                        <MessageSquare className='size-3 text-neutral-400' />
+                      )}
                       {notification.type === "mention" && (
                         <MessageSquare className='size-3 text-neutral-400' />
                       )}
-                      {notification.type === "share" && (
+                      {(notification.type === "share" || notification.type === "invite") && (
                         <FileText className='size-3 text-neutral-400' />
                       )}
                       <span className='text-[10px] text-neutral-400'>
