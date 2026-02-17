@@ -10,6 +10,7 @@ import { useUser } from "@/hooks/use-user";
 import { AVATAR_GRADIENTS } from "@/lib/avatars";
 import { updateUserAvatar } from "@/actions/user";
 import { toast } from "sonner";
+import { createClient } from "@/utils/supabase/client";
 
 export function SettingsModal() {
   const { settingsOpen, setSettingsOpen } = useTextFlowStore();
@@ -33,6 +34,9 @@ export function SettingsModal() {
       if (result?.error) {
         toast.error(result.error);
       } else {
+        // Refresh the client-side session so useUser picks up the new avatar immediately
+        const supabase = createClient();
+        await supabase.auth.refreshSession();
         toast.success("Avatar updated!");
         setShowAvatarPicker(false);
       }
