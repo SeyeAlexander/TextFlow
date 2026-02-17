@@ -13,6 +13,7 @@ export interface TextFlowFile {
   shared: boolean;
   createdAt: string | Date; // Standardize for serialization
   updatedAt: string | Date;
+  ownerId?: string;
 }
 
 export interface TextFlowFolder {

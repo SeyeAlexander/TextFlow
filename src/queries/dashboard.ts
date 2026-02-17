@@ -96,7 +96,7 @@ export async function getDashboardData(folderId: string | null = null) {
       content: JSON.stringify(d.content),
       folderId: d.folderId,
       starred: d.isStarred || false,
-      shared: d.isPublic || false,
+      shared: d.ownerId !== user.id,
       updatedAt: d.updatedAt,
       createdAt: d.createdAt,
       ownerId: d.ownerId,
@@ -168,9 +168,10 @@ export async function getRecentFiles() {
     size: "0 KB",
     folderId: d.folderId,
     starred: d.isStarred || false,
-    shared: d.isPublic || false,
+    shared: d.ownerId !== user.id,
     updatedAt: d.updatedAt,
     createdAt: d.createdAt,
+    ownerId: d.ownerId,
   }));
 }
 
@@ -195,9 +196,10 @@ export async function getStarredFiles() {
     size: "0 KB",
     folderId: d.folderId,
     starred: true,
-    shared: d.isPublic || false,
+    shared: false,
     updatedAt: d.updatedAt,
     createdAt: d.createdAt,
+    ownerId: d.ownerId,
   }));
 }
 
@@ -222,10 +224,11 @@ export async function getSharedFiles() {
     type: "document" as const,
     size: "0 KB",
     folderId: d.folderId,
-    starred: d.isStarred || false,
+    starred: false,
     shared: true,
     updatedAt: d.updatedAt,
     createdAt: d.createdAt,
+    ownerId: d.ownerId,
   }));
 }
 
@@ -308,9 +311,10 @@ export async function getSidebarData() {
       size: "0 KB",
       folderId: d.folderId,
       starred: d.isStarred || false,
-      shared: d.isPublic || false,
+      shared: d.ownerId !== user.id,
       createdAt: d.createdAt,
       updatedAt: d.updatedAt,
+      ownerId: d.ownerId,
     })),
     unreadCount: Number(unreadCount),
   };
@@ -400,8 +404,9 @@ export async function searchDocuments(query: string) {
     size: "0 KB",
     folderId: d.folderId,
     starred: d.isStarred || false,
-    shared: d.isPublic || false,
+    shared: d.ownerId !== user.id,
     updatedAt: d.updatedAt,
     createdAt: d.createdAt,
+    ownerId: d.ownerId,
   }));
 }

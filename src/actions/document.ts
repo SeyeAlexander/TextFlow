@@ -54,6 +54,7 @@ export async function toggleStar(documentId: string) {
   });
 
   if (!doc) throw new Error("Document not found");
+  if (doc.ownerId !== user.id) throw new Error("Only the owner can star this document");
 
   await db
     .update(documents)

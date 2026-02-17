@@ -17,6 +17,7 @@ import {
   Edit3,
   FolderPlus,
   Mail,
+  Users as UsersGlyph,
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { fetchSidebarData } from "@/actions/data";
@@ -233,6 +234,9 @@ function ContextMenu({
   onRename,
   onDelete,
   onStar,
+  canRename = true,
+  canStar = true,
+  canDelete = true,
   folders, // passed down ONLY if it matches the current level of abstraction? No, passed from FileItem
   onAddToFolder,
 }: {
@@ -244,6 +248,9 @@ function ContextMenu({
   onRename: (newName: string) => void;
   onDelete: () => void;
   onStar?: () => void;
+  canRename?: boolean;
+  canStar?: boolean;
+  canDelete?: boolean;
   folders?: TextFlowFolder[];
   onAddToFolder?: (folderId: string) => void;
 }) {
@@ -304,15 +311,17 @@ function ContextMenu({
           </div>
         ) : (
           <>
-            <button
-              onClick={() => setIsRenaming(true)}
-              className={`${BUTTON_STYLE} w-full ${BUTTON_HOVER}`}
-            >
-              <Edit3 className='size-3.5' />
-              Rename
-            </button>
+            {canRename && (
+              <button
+                onClick={() => setIsRenaming(true)}
+                className={`${BUTTON_STYLE} w-full ${BUTTON_HOVER}`}
+              >
+                <Edit3 className='size-3.5' />
+                Rename
+              </button>
+            )}
 
-            {type === "file" && onStar && (
+            {type === "file" && onStar && canStar && (
               <>
                 <button onClick={handleStar} className={`${BUTTON_STYLE} w-full ${BUTTON_HOVER}`}>
                   <Star
@@ -329,14 +338,17 @@ function ContextMenu({
                 </button>
               </>
             )}
-            {/* REMOVED SEPARATOR AS REQUESTED */}
-            <button
-              onClick={handleDelete}
-              className={`${BUTTON_STYLE} w-full text-red-500 hover:bg-red-500/10`}
-            >
-              <Trash2 className='size-3.5' />
-              Delete
-            </button>
+            {canDelete ? (
+              <button
+                onClick={handleDelete}
+                className={`${BUTTON_STYLE} w-full text-red-500 hover:bg-red-500/10`}
+              >
+                <Trash2 className='size-3.5' />
+                Delete
+              </button>
+            ) : type === "file" ? (
+              <div className='px-3 py-2 text-[12px] text-muted-foreground'>View only</div>
+            ) : null}
           </>
         )}
       </motion.div>
@@ -376,7 +388,11 @@ function FileItem({
   const iconRef = useRef<BookTextIconHandle>(null);
   const queryClient = useQueryClient();
   const router = useRouter(); // Added router for redirect on delete
+  const { user } = useUser();
+  const setChatOpen = useTextFlowStore((s) => s.setChatOpen);
+  const setActiveChatDocument = useTextFlowStore((s) => s.setActiveChatDocument);
   const isActive = pathname === `/dashboard/document/${file.id}`;
+  const isOwner = !file.ownerId || file.ownerId === user?.id;
 
   const renameMutation = useMutation({
     mutationFn: async (newName: string) => {
@@ -414,9 +430,15 @@ function FileItem({
     mutationFn: async () => {
       const formData = new FormData();
       formData.append("id", file.id);
-      await deleteFile(formData);
+      const result = await deleteFile(formData);
+      if (!result?.success) {
+        throw new Error(result?.error || "Failed to delete file");
+      }
     },
     onMutate: async () => {
+      if (!isOwner) {
+        return {};
+      }
       await queryClient.cancelQueries({ queryKey: ["sidebar"] });
       const previousSidebar = queryClient.getQueryData(["sidebar"]);
 
@@ -432,8 +454,10 @@ function FileItem({
       return { previousSidebar };
     },
     onError: (err, newTodo, context) => {
-      queryClient.setQueryData(["sidebar"], context?.previousSidebar);
-      toast.error("Failed to delete file");
+      if (context?.previousSidebar) {
+        queryClient.setQueryData(["sidebar"], context.previousSidebar);
+      }
+      toast.error(err instanceof Error ? err.message : "Failed to delete file");
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["sidebar"] });
@@ -463,6 +487,9 @@ function FileItem({
       return toggleStar(file.id);
     },
     onMutate: async () => {
+      if (!isOwner) {
+        return {};
+      }
       await queryClient.cancelQueries({ queryKey: ["sidebar"] });
       const previousSidebar = queryClient.getQueryData(["sidebar"]);
 
@@ -476,7 +503,12 @@ function FileItem({
       return { previousSidebar };
     },
     onError: (err, vars, context) => {
-      queryClient.setQueryData(["sidebar"], context?.previousSidebar);
+      if (context?.previousSidebar) {
+        queryClient.setQueryData(["sidebar"], context.previousSidebar);
+      }
+      if (err instanceof Error) {
+        toast.error(err.message);
+      }
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["sidebar"] });
@@ -501,10 +533,17 @@ function FileItem({
         <Link
           href={`/dashboard/document/${file.id}`}
           className='flex flex-1 items-center gap-2 min-w-0'
+          onClick={() => {
+            setChatOpen(false);
+            setActiveChatDocument(null);
+          }}
         >
           <BookTextIcon ref={iconRef} size={14} className='shrink-0 text-muted-foreground' />
           <span className='truncate'>{file.name}</span>
-          {file.starred && <Star className='size-2.5 shrink-0 fill-amber-500 text-amber-500' />}
+          {isOwner && file.starred && (
+            <Star className='size-2.5 shrink-0 fill-amber-500 text-amber-500' />
+          )}
+          {!isOwner && <UsersGlyph className='size-2.5 shrink-0 text-blue-500' />}
         </Link>
 
         <button
@@ -533,8 +572,11 @@ function FileItem({
               // So we just set showDeleteModal(true) here.
             }}
             onStar={() => starMutation.mutate()}
+            canRename={isOwner}
+            canStar={isOwner}
+            canDelete={isOwner}
             folders={folders}
-            onAddToFolder={(fid) => addToFolderMutation.mutate(fid)}
+            onAddToFolder={isOwner ? (fid) => addToFolderMutation.mutate(fid) : undefined}
           />
         )}
       </AnimatePresence>
@@ -542,7 +584,14 @@ function FileItem({
       <DeleteFileModal
         isOpen={showDeleteModal}
         onClose={() => setShowDeleteModal(false)}
-        onConfirm={() => deleteMutation.mutate()}
+        onConfirm={() => {
+          if (!isOwner) {
+            toast.error("Only the owner can delete this document");
+            setShowDeleteModal(false);
+            return;
+          }
+          deleteMutation.mutate();
+        }}
         fileName={file.name}
       />
     </>
@@ -1218,6 +1267,8 @@ function ExpandedSidebar({
 }: any) {
   const { user } = useUser();
   const unreadCount = sidebarData?.unreadCount || 0;
+  const ownerFiles = files.filter((f: any) => !f.ownerId || f.ownerId === user?.id);
+  const sharedWithMeCount = files.filter((f: any) => !!f.ownerId && f.ownerId !== user?.id).length;
 
   return (
     <aside className='flex h-full w-56 flex-col transition-all duration-300 bg-[#F5F5F5] dark:bg-[#111]'>
@@ -1265,7 +1316,7 @@ function ExpandedSidebar({
             href='/dashboard/starred'
             animatedIconType='sparkles'
             label='Starred'
-            badge={files.filter((f: any) => f.starred).length}
+            badge={ownerFiles.filter((f: any) => f.starred).length}
           />
           <NavLink
             href='/dashboard/recent'
@@ -1277,7 +1328,7 @@ function ExpandedSidebar({
             href='/dashboard/shared'
             animatedIconType='users'
             label='Shared'
-            badge={files.filter((f: any) => f.shared).length}
+            badge={sharedWithMeCount}
           />
 
           <div className='relative'>
@@ -1470,12 +1521,12 @@ export function AppSidebar({ collapsed }: { collapsed: boolean }) {
     const existingNames = new Set<string>(
       (sidebarData?.files || []).map((f: any) => String(f.name || "")),
     );
-    const baseName = "New Document";
+    const baseName = "Untitled";
+    let suffix = 1;
     let nextName = baseName;
-    if (existingNames.has(baseName)) {
-      let i = 1;
-      while (existingNames.has(`${baseName} (${i})`)) i += 1;
-      nextName = `${baseName} (${i})`;
+    while (existingNames.has(nextName)) {
+      suffix += 1;
+      nextName = `${baseName} ${suffix}`;
     }
     const loadingToastId = toast.loading("Creating document...");
     try {

@@ -220,6 +220,7 @@ export function DocumentView({ fileId }: { fileId: string }) {
   // Collaboration state
   const [syncStatus, setSyncStatus] = useState<SyncStatus>("disconnected");
   const [awarenessStates, setAwarenessStates] = useState<Map<number, AwarenessState>>(new Map());
+  const [editorBootstrapped, setEditorBootstrapped] = useState(false);
 
   const starMutation = useMutation({
     mutationFn: () => toggleStar(fileId),
@@ -288,16 +289,26 @@ export function DocumentView({ fileId }: { fileId: string }) {
   }, [file]);
 
   useEffect(() => {
-    setChatOpen(false);
-    setActiveChatDocument(null);
-  }, [fileId, setChatOpen, setActiveChatDocument]);
-
-  useEffect(() => {
     if (file && !file.shared) {
       setChatOpen(false);
       setActiveChatDocument(null);
     }
   }, [file, setChatOpen, setActiveChatDocument]);
+
+  useEffect(() => {
+    setEditorBootstrapped(false);
+  }, [fileId]);
+
+  useEffect(() => {
+    if (syncStatus === "connected") {
+      setEditorBootstrapped(true);
+      return;
+    }
+    const timer = setTimeout(() => {
+      setEditorBootstrapped(true);
+    }, 1200);
+    return () => clearTimeout(timer);
+  }, [syncStatus]);
 
 
   // Redirect if document not found (deleted)
@@ -315,6 +326,8 @@ export function DocumentView({ fileId }: { fileId: string }) {
     // Return null while redirecting to avoid flash of error state
     return null;
   }
+
+  const isOwner = !file.ownerId || file.ownerId === user?.id;
 
   return (
     <>
@@ -403,15 +416,17 @@ export function DocumentView({ fileId }: { fileId: string }) {
                   title={`Sync: ${syncStatus}`}
                 />
               )}
-              <button
-                onClick={() => starMutation.mutate()}
-                className={`rounded-lg p-2 transition-colors ${
-                  file.starred ? "text-amber-500" : "hover:bg-black/5 dark:hover:bg-white/5"
-                }`}
-                title={file.starred ? "Unstar" : "Star"}
-              >
-                <Star className={`size-4 ${file.starred ? "fill-current" : ""}`} />
-              </button>
+              {isOwner && (
+                <button
+                  onClick={() => starMutation.mutate()}
+                  className={`rounded-lg p-2 transition-colors ${
+                    file.starred ? "text-amber-500" : "hover:bg-black/5 dark:hover:bg-white/5"
+                  }`}
+                  title={file.starred ? "Unstar" : "Star"}
+                >
+                  <Star className={`size-4 ${file.starred ? "fill-current" : ""}`} />
+                </button>
+              )}
 
               <div className='relative'>
                 <button
@@ -433,6 +448,8 @@ export function DocumentView({ fileId }: { fileId: string }) {
                   )}
                 </AnimatePresence>
               </div>
+
+              <div id='editor-undo-redo-slot' className='mr-1' />
 
               {file.shared && (
                 <button
@@ -461,6 +478,16 @@ export function DocumentView({ fileId }: { fileId: string }) {
               animate={{ marginRight: chatOpen ? 0 : 0 }}
               transition={{ type: "spring", stiffness: 300, damping: 30 }}
             >
+              {!editorBootstrapped && (
+                <div className='absolute inset-0 z-20 bg-white/85 dark:bg-[#0A0A0A]/85 backdrop-blur-[1px]'>
+                  <div className='h-full px-20 py-12 space-y-4'>
+                    <Skeleton className='h-8 w-2/5 bg-black/6 dark:bg-white/8' />
+                    <Skeleton className='h-4 w-full bg-black/6 dark:bg-white/8' />
+                    <Skeleton className='h-4 w-5/6 bg-black/6 dark:bg-white/8' />
+                    <Skeleton className='h-4 w-4/5 bg-black/6 dark:bg-white/8' />
+                  </div>
+                </div>
+              )}
               {/* Lexical Editor */}
               <Editor
                 key={fileId}

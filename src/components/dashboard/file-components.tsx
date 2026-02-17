@@ -17,6 +17,7 @@ import {
   Trash2,
   FolderPlus,
   Share2,
+  Users,
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { createFolder, renameFolder, deleteFolder } from "@/actions/folders";
@@ -27,6 +28,8 @@ import { MetallicFolder } from "@/components/icons/metallic-folder";
 import { DocumentIcon } from "@/components/icons/document-icon";
 import { DeleteFolderModal } from "./delete-folder-modal";
 import { DeleteFileModal } from "./delete-file-modal";
+import { useUser } from "@/hooks/use-user";
+import { toast } from "sonner";
 
 // Get icon component based on file type
 function FileIcon({ type, className }: { type: TextFlowFile["type"]; className?: string }) {
@@ -124,11 +127,13 @@ function FileContextMenu({
   onClose,
   position,
   file,
+  canManage,
 }: {
   isOpen: boolean;
   onClose: () => void;
   position: { x: number; y: number };
   file: TextFlowFile;
+  canManage: boolean;
 }) {
   const queryClient = useQueryClient();
   const [isRenaming, setIsRenaming] = useState(false);
@@ -234,9 +239,15 @@ function FileContextMenu({
     mutationFn: async () => {
       const formData = new FormData();
       formData.append("id", file.id);
-      await deleteFile(formData);
+      const result = await deleteFile(formData);
+      if (!result?.success) {
+        throw new Error(result?.error || "Failed to delete file");
+      }
     },
     onMutate: async () => {
+      if (!canManage) {
+        return {};
+      }
       await queryClient.cancelQueries({ queryKey: ["dashboard"] });
       await queryClient.cancelQueries({ queryKey: ["sidebar"] });
       const previousDashboard = queryClient.getQueryData(["dashboard"]);
@@ -266,6 +277,7 @@ function FileContextMenu({
       if (context?.previousSidebar) {
         queryClient.setQueryData(["sidebar"], context.previousSidebar);
       }
+      toast.error(err instanceof Error ? err.message : "Failed to delete file");
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
@@ -316,50 +328,52 @@ function FileContextMenu({
           </div>
         ) : (
           <>
-            <button
-              onClick={() => setIsRenaming(true)}
-              className='flex w-full items-center gap-2 px-3 py-1.5 text-[13px] transition-colors hover:bg-black/5 dark:hover:bg-white/5'
-            >
-              <Edit3 className='size-3.5' />
-              Rename
-            </button>
-            <button
-              onClick={() => starMutation.mutate()}
-              className='flex w-full items-center gap-2 px-3 py-1.5 text-[13px] transition-colors hover:bg-black/5 dark:hover:bg-white/5'
-            >
-              <Star className='size-3.5' />
-              {file.starred ? "Unstar" : "Star"}
-            </button>
-            <button
-              onClick={() => {
-                // For unsharing, we'd need another action, but we'll focus on renaming/starring/moving
-                onClose();
-              }}
-              className='flex w-full items-center gap-2 px-3 py-1.5 text-[13px] transition-colors hover:bg-black/5 dark:hover:bg-white/5'
-            >
-              <Share2 className='size-3.5' />
-              {file.shared ? "Manage sharing" : "Share"}
-            </button>
-            <button
-              onClick={() => setShowFolderMenu(true)}
-              className='flex w-full items-center gap-2 px-3 py-1.5 text-[13px] transition-colors hover:bg-black/5 dark:hover:bg-white/5'
-            >
-              <FolderPlus className='size-3.5' />
-              Add to folder
-            </button>
-            <div className='my-1 h-px bg-black/5 dark:bg-white/5' />
-            <button
-              onClick={() => {
-                // Close menu implies we shouldn't interact with it anymore,
-                // BUT we need to keep the modal open.
-                // We'll handle this by rendering the modal OUTSIDE this motion.div or just overlaying.
-                setShowDeleteModal(true);
-              }}
-              className='flex w-full items-center gap-2 px-3 py-1.5 text-[13px] text-red-500 transition-colors hover:bg-red-500/10'
-            >
-              <Trash2 className='size-3.5' />
-              Delete
-            </button>
+            {canManage ? (
+              <>
+                <button
+                  onClick={() => setIsRenaming(true)}
+                  className='flex w-full items-center gap-2 px-3 py-1.5 text-[13px] transition-colors hover:bg-black/5 dark:hover:bg-white/5'
+                >
+                  <Edit3 className='size-3.5' />
+                  Rename
+                </button>
+                <button
+                  onClick={() => starMutation.mutate()}
+                  className='flex w-full items-center gap-2 px-3 py-1.5 text-[13px] transition-colors hover:bg-black/5 dark:hover:bg-white/5'
+                >
+                  <Star className='size-3.5' />
+                  {file.starred ? "Unstar" : "Star"}
+                </button>
+                <button
+                  onClick={() => {
+                    onClose();
+                  }}
+                  className='flex w-full items-center gap-2 px-3 py-1.5 text-[13px] transition-colors hover:bg-black/5 dark:hover:bg-white/5'
+                >
+                  <Share2 className='size-3.5' />
+                  {file.shared ? "Manage sharing" : "Share"}
+                </button>
+                <button
+                  onClick={() => setShowFolderMenu(true)}
+                  className='flex w-full items-center gap-2 px-3 py-1.5 text-[13px] transition-colors hover:bg-black/5 dark:hover:bg-white/5'
+                >
+                  <FolderPlus className='size-3.5' />
+                  Add to folder
+                </button>
+                <div className='my-1 h-px bg-black/5 dark:bg-white/5' />
+                <button
+                  onClick={() => {
+                    setShowDeleteModal(true);
+                  }}
+                  className='flex w-full items-center gap-2 px-3 py-1.5 text-[13px] text-red-500 transition-colors hover:bg-red-500/10'
+                >
+                  <Trash2 className='size-3.5' />
+                  Delete
+                </button>
+              </>
+            ) : (
+              <div className='px-3 py-2 text-[12px] text-muted-foreground'>Shared document</div>
+            )}
           </>
         )}
       </motion.div>
@@ -383,7 +397,14 @@ function FileContextMenu({
           setShowDeleteModal(false);
           onClose(); // Close the menu too when modal closes
         }}
-        onConfirm={() => deleteMutation.mutate()}
+        onConfirm={() => {
+          if (!canManage) {
+            toast.error("Only the owner can delete this document");
+            setShowDeleteModal(false);
+            return;
+          }
+          deleteMutation.mutate();
+        }}
         fileName={file.name}
       />
     </>
@@ -393,8 +414,10 @@ function FileContextMenu({
 // File Card - with document icon
 export function FileCard({ file, index = 0 }: { file: TextFlowFile; index?: number }) {
   const queryClient = useQueryClient();
+  const { user } = useUser();
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuPos, setMenuPos] = useState({ x: 0, y: 0 });
+  const isOwner = !file.ownerId || file.ownerId === user?.id;
 
   const starMutation = useMutation({
     mutationFn: async () => {
@@ -462,20 +485,22 @@ export function FileCard({ file, index = 0 }: { file: TextFlowFile; index?: numb
 
           {/* Vertical actions beside icon */}
           <div className='absolute -right-6 top-1/2 -translate-y-1/2 flex flex-col gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity'>
-            <button
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                starMutation.mutate();
-              }}
-              className={`rounded-lg p-1.5 transition-colors ${
-                file.starred
-                  ? "text-amber-500 opacity-100"
-                  : "text-muted-foreground hover:text-amber-500 hover:bg-black/5 dark:hover:bg-white/5"
-              }`}
-            >
-              <Star className={`size-3.5 ${file.starred ? "fill-current" : ""}`} />
-            </button>
+            {isOwner && (
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  starMutation.mutate();
+                }}
+                className={`rounded-lg p-1.5 transition-colors ${
+                  file.starred
+                    ? "text-amber-500 opacity-100"
+                    : "text-muted-foreground hover:text-amber-500 hover:bg-black/5 dark:hover:bg-white/5"
+                }`}
+              >
+                <Star className={`size-3.5 ${file.starred ? "fill-current" : ""}`} />
+              </button>
+            )}
             <button
               onClick={handleMenuClick}
               className='rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-black/5 dark:hover:bg-white/5'
@@ -494,8 +519,9 @@ export function FileCard({ file, index = 0 }: { file: TextFlowFile; index?: numb
           <p className='text-[10px] text-muted-foreground mt-0.5'>
             {file.size} · {formatRelativeTime(file.updatedAt)}
           </p>
-          {file.shared && (
-            <span className='mt-1 inline-block rounded-full bg-purple-500/10 px-1.5 py-0.5 text-[9px] text-purple-500'>
+          {!isOwner && (
+            <span className='mt-1 inline-flex items-center gap-1 rounded-full bg-blue-500/10 px-1.5 py-0.5 text-[9px] text-blue-500'>
+              <Users className='size-2.5' />
               Shared
             </span>
           )}
@@ -509,6 +535,7 @@ export function FileCard({ file, index = 0 }: { file: TextFlowFile; index?: numb
             onClose={() => setMenuOpen(false)}
             position={menuPos}
             file={file}
+            canManage={isOwner}
           />
         )}
       </AnimatePresence>
@@ -771,6 +798,7 @@ export function FolderCard({
 // File List - table format for All Files view with menu
 export function FileList({ files }: { files: TextFlowFile[] }) {
   const queryClient = useQueryClient();
+  const { user } = useUser();
   const [menuOpen, setMenuOpen] = useState<string | null>(null);
   const [menuPos, setMenuPos] = useState({ x: 0, y: 0 });
   const [activeFile, setActiveFile] = useState<TextFlowFile | null>(null);
@@ -874,8 +902,9 @@ export function FileList({ files }: { files: TextFlowFile[] }) {
                   <FileIcon type={file.type} className='size-4 text-blue-500' />
                 </div>
                 <span className='truncate text-sm'>{file.name}</span>
-                {file.shared && (
-                  <span className='rounded-full bg-purple-500/10 px-1.5 py-0.5 text-[9px] text-purple-500'>
+                {file.ownerId && file.ownerId !== user?.id && (
+                  <span className='inline-flex items-center gap-1 rounded-full bg-blue-500/10 px-1.5 py-0.5 text-[9px] text-blue-500'>
+                    <Users className='size-2.5' />
                     Shared
                   </span>
                 )}
@@ -897,16 +926,18 @@ export function FileList({ files }: { files: TextFlowFile[] }) {
 
               {/* Actions */}
               <div className='flex w-14 items-center justify-end gap-0.5'>
-                <button
-                  onClick={() => starMutation.mutate(file.id)}
-                  className={`rounded-lg p-1.5 transition-colors ${
-                    file.starred
-                      ? "text-amber-500"
-                      : "text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-amber-500"
-                  }`}
-                >
-                  <Star className={`size-3 ${file.starred ? "fill-current" : ""}`} />
-                </button>
+                {(!file.ownerId || file.ownerId === user?.id) && (
+                  <button
+                    onClick={() => starMutation.mutate(file.id)}
+                    className={`rounded-lg p-1.5 transition-colors ${
+                      file.starred
+                        ? "text-amber-500"
+                        : "text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-amber-500"
+                    }`}
+                  >
+                    <Star className={`size-3 ${file.starred ? "fill-current" : ""}`} />
+                  </button>
+                )}
                 <button
                   onClick={(e) => handleMenuClick(e, file)}
                   className='rounded-lg p-1.5 text-muted-foreground opacity-0 transition-colors hover:text-foreground group-hover:opacity-100'
@@ -957,6 +988,7 @@ export function FileList({ files }: { files: TextFlowFile[] }) {
             }}
             position={menuPos}
             file={activeFile}
+            canManage={!activeFile.ownerId || activeFile.ownerId === user?.id}
           />
         )}
       </AnimatePresence>

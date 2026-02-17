@@ -115,7 +115,14 @@ export async function deleteFile(formData: FormData) {
   if (!id) return { error: "ID required" };
 
   try {
-    await db.delete(documents).where(and(eq(documents.id, id), eq(documents.ownerId, user.id)));
+    const deleted = await db
+      .delete(documents)
+      .where(and(eq(documents.id, id), eq(documents.ownerId, user.id)))
+      .returning({ id: documents.id });
+
+    if (deleted.length === 0) {
+      return { error: "Only the owner can delete this document" };
+    }
 
     revalidatePath("/dashboard");
     return { success: true };
