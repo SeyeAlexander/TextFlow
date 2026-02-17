@@ -1,20 +1,46 @@
 "use client";
 
+import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, User, Moon, Sun, LogOut, Bell } from "lucide-react";
+import { X, User, Moon, Sun, LogOut, Bell, Pencil, Check } from "lucide-react";
 import { useTextFlowStore } from "@/store/store";
 import { useTheme } from "next-themes";
 import { signOut } from "@/actions/auth";
 import { useUser } from "@/hooks/use-user";
+import { AVATAR_GRADIENTS } from "@/lib/avatars";
+import { updateUserAvatar } from "@/actions/user";
+import { toast } from "sonner";
 
 export function SettingsModal() {
   const { settingsOpen, setSettingsOpen } = useTextFlowStore();
   const { theme, setTheme } = useTheme();
   const { user } = useUser();
+  const [showAvatarPicker, setShowAvatarPicker] = useState(false);
+  const [updatingAvatar, setUpdatingAvatar] = useState(false);
+
+  const currentGradient = user?.user_metadata?.avatar_url;
 
   const handleLogout = async () => {
     setSettingsOpen(false);
     await signOut();
+  };
+
+  const handleAvatarChange = async (gradient: string) => {
+    if (updatingAvatar) return;
+    setUpdatingAvatar(true);
+    try {
+      const result = await updateUserAvatar(gradient);
+      if (result?.error) {
+        toast.error(result.error);
+      } else {
+        toast.success("Avatar updated!");
+        setShowAvatarPicker(false);
+      }
+    } catch {
+      toast.error("Failed to update avatar");
+    } finally {
+      setUpdatingAvatar(false);
+    }
   };
 
   return (
@@ -51,33 +77,80 @@ export function SettingsModal() {
                 </button>
               </div>
 
-              {/* User Info */}
-              <div className='flex items-center gap-3 border-b border-black/5 px-4 py-3 dark:border-white/5'>
-                <div className='flex size-10 items-center justify-center rounded-full overflow-hidden relative'>
-                  {user?.user_metadata?.avatar_url ? (
-                    user.user_metadata.avatar_url.startsWith("http") ? (
+              {/* User Info + Avatar Picker */}
+              <div className='border-b border-black/5 px-4 py-3 dark:border-white/5'>
+                <div className='flex items-center gap-3'>
+                  {/* Clickable avatar */}
+                  <button
+                    onClick={() => setShowAvatarPicker(!showAvatarPicker)}
+                    className='group relative flex size-10 items-center justify-center rounded-full overflow-hidden'
+                  >
+                    {currentGradient && !currentGradient.startsWith("http") ? (
+                      <div
+                        className={`size-full rounded-full bg-linear-to-br ${currentGradient}`}
+                      />
+                    ) : currentGradient?.startsWith("http") ? (
                       <img
-                        src={user.user_metadata.avatar_url}
-                        alt={user.user_metadata.full_name || "User"}
+                        src={currentGradient}
+                        alt={user?.user_metadata?.full_name || "User"}
                         className='size-full object-cover'
                       />
                     ) : (
-                      <div
-                        className={`size-full rounded-full bg-linear-to-br ${user.user_metadata.avatar_url}`}
-                      />
-                    )
-                  ) : (
-                    <div className='flex size-full items-center justify-center rounded-full bg-linear-to-br from-purple-500 to-blue-500'>
-                      <User className='size-5 text-white' />
+                      <div className='flex size-full items-center justify-center rounded-full bg-linear-to-br from-purple-500 to-blue-500'>
+                        <User className='size-5 text-white' />
+                      </div>
+                    )}
+                    {/* Edit overlay */}
+                    <div className='absolute inset-0 flex items-center justify-center rounded-full bg-black/0 transition-colors group-hover:bg-black/40'>
+                      <Pencil className='size-3 text-white opacity-0 transition-opacity group-hover:opacity-100' />
                     </div>
+                  </button>
+                  <div className='min-w-0 flex-1'>
+                    <p className='text-sm font-medium truncate'>
+                      {user?.user_metadata?.full_name || "User"}
+                    </p>
+                    <p className='text-[11px] text-muted-foreground truncate'>
+                      {user?.email || ""}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Avatar Gradient Picker */}
+                <AnimatePresence>
+                  {showAvatarPicker && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: "auto", opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className='overflow-hidden'
+                    >
+                      <div className='mt-3 rounded-xl bg-black/[0.03] p-3 dark:bg-white/[0.03]'>
+                        <p className='mb-2 text-[11px] font-medium text-muted-foreground'>
+                          Choose avatar
+                        </p>
+                        <div className='grid grid-cols-8 gap-1.5'>
+                          {AVATAR_GRADIENTS.map((gradient) => (
+                            <button
+                              key={gradient}
+                              onClick={() => handleAvatarChange(gradient)}
+                              disabled={updatingAvatar}
+                              className={`relative size-7 rounded-full bg-linear-to-br transition-transform hover:scale-110 active:scale-95 disabled:opacity-50 ${gradient} ${
+                                currentGradient === gradient
+                                  ? "ring-2 ring-blue-500 ring-offset-2 ring-offset-white dark:ring-offset-[#1a1a1a]"
+                                  : ""
+                              }`}
+                            >
+                              {currentGradient === gradient && (
+                                <Check className='absolute inset-0 m-auto size-3.5 text-white' />
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </motion.div>
                   )}
-                </div>
-                <div className='min-w-0 flex-1'>
-                  <p className='text-sm font-medium truncate'>
-                    {user?.user_metadata?.full_name || "User"}
-                  </p>
-                  <p className='text-[11px] text-muted-foreground truncate'>{user?.email || ""}</p>
-                </div>
+                </AnimatePresence>
               </div>
 
               {/* Settings Items */}
