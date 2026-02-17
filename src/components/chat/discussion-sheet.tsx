@@ -14,17 +14,7 @@ import { getMessages, sendMessage as sendMessageAction, getChatForDocument } fro
 import { createClient } from "@/utils/supabase/client";
 import { updateUserAvatar } from "@/actions/user";
 import { toast } from "sonner";
-
-const AVATAR_GRADIENTS = [
-  "from-purple-500 to-blue-500",
-  "from-orange-400 to-rose-400",
-  "from-emerald-400 to-cyan-400",
-  "from-pink-500 to-amber-500",
-  "from-indigo-500 to-purple-500",
-  "from-blue-600 to-violet-600",
-  "from-red-500 to-orange-500",
-  "from-teal-400 to-blue-500",
-];
+import { AVATAR_GRADIENTS } from "@/lib/avatars";
 
 export function DiscussionSheet() {
   const { user: currentUser } = useUser();

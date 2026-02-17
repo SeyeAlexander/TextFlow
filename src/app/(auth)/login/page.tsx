@@ -122,19 +122,18 @@ export default function LoginPage() {
       </form>
 
       {/* Divider */}
-      {/* <div className='relative my-6'>
+      <div className='relative my-6'>
         <div className='absolute inset-0 flex items-center'>
           <div className='w-full border-t' />
         </div>
         <div className='relative flex justify-center text-xs uppercase'>
           <span className='bg-background px-2 text-muted-foreground dark:bg-[#111]'>Or</span>
         </div>
-      </div> */}
+      </div>
 
       {/* Google sign in */}
-      {/* <Button
-        variant='outline'
-        className='h-11 w-full rounded-lg'
+      <Button
+        className='h-11 w-full rounded-lg bg-neutral-900 text-white hover:bg-neutral-800 active:scale-95 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-100'
         type='button'
         onClick={handleGoogleLogin}
       >
@@ -157,7 +156,7 @@ export default function LoginPage() {
           />
         </svg>
         Continue with Google
-      </Button> */}
+      </Button>
 
       {/* Sign up link */}
       <p className='mt-6 text-center text-sm text-muted-foreground'>

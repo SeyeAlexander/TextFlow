@@ -4,6 +4,10 @@ import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
+import { getRandomGradient } from "@/lib/avatars";
+import { db } from "@/db";
+import { profiles } from "@/db/schema";
+import { eq } from "drizzle-orm";
 
 import { loginSchema, signupSchema, LoginValues, SignupValues } from "@/lib/schemas";
 
@@ -56,6 +60,22 @@ export async function signup(data: SignupValues) {
 
   if (error) {
     return { error: error.message };
+  }
+
+  // Assign a default avatar gradient for the new user
+  if (authData.user) {
+    const gradient = getRandomGradient(authData.user.id);
+    try {
+      await db
+        .update(profiles)
+        .set({ avatarUrl: gradient })
+        .where(eq(profiles.id, authData.user.id));
+      await supabase.auth.updateUser({
+        data: { avatar_url: gradient },
+      });
+    } catch {
+      // Non-critical — user can pick an avatar later
+    }
   }
 
   // If email confirmation is disabled, we get a session immediately

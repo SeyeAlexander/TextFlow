@@ -293,7 +293,7 @@ function ContextMenu({
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.95 }}
         style={{ left: position.x, top: position.y }}
-        className='fixed z-50 w-40 rounded-lg border border-black/10 bg-white py-1 shadow-lg dark:border-white/10 dark:bg-[#1a1a1a]'
+        className='fixed z-50 w-40 rounded-lg border border-black/10 bg-white py-1 px-1 shadow-lg dark:border-white/10 dark:bg-[#1a1a1a]'
       >
         {isRenaming ? (
           <div className='p-2'>

@@ -77,8 +77,8 @@ const letterPatterns: Record<string, number[][]> = {
 };
 
 const sizeConfig = {
-  sm: { dotSize: 1, gap: 1, letterGap: 4 },
-  md: { dotSize: 1, gap: 1.5, letterGap: 6 },
+  sm: { dotSize: 1.4, gap: 1, letterGap: 4 },
+  md: { dotSize: 1.6, gap: 1.5, letterGap: 6 },
   lg: { dotSize: 4, gap: 2, letterGap: 8 },
 };
 
