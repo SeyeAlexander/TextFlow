@@ -12,7 +12,6 @@
 
 import { useCallback, useEffect, useState, useRef } from "react";
 import { CollaborationPlugin } from "@lexical/react/LexicalCollaborationPlugin";
-import { LexicalCollaboration } from "@lexical/react/LexicalCollaborationContext";
 import * as Y from "yjs";
 import type { Provider } from "@lexical/yjs";
 import { SupabaseYjsProvider } from "@/lib/sync/supabase-yjs-provider";
@@ -30,8 +29,8 @@ interface CollaborationWrapperProps {
   onAwarenessChange?: (states: Map<number, unknown>) => void;
 }
 
-// Store for Y.Docs to reuse across renders
-const yjsDocMap = new Map<string, Y.Doc>();
+// Pre-loaded Y.js state cache: documentId -> base64 state
+const preloadedStates = new Map<string, Uint8Array | null>();
 
 export function CollaborationWrapper({
   documentId,
@@ -45,21 +44,34 @@ export function CollaborationWrapper({
   const [isLoaded, setIsLoaded] = useState(false);
   const [shouldBootstrapFromContent, setShouldBootstrapFromContent] = useState(false);
   const providerRef = useRef<SupabaseYjsProvider | null>(null);
-  const backfillUnsubscribeRef = useRef<(() => void) | null>(null);
+  // Stable refs so the provider factory doesn't re-create on every render
+  const onStatusChangeRef = useRef(onStatusChange);
+  const onAwarenessChangeRef = useRef(onAwarenessChange);
+  onStatusChangeRef.current = onStatusChange;
+  onAwarenessChangeRef.current = onAwarenessChange;
 
   // Get user color based on their ID
   const userColor = getCollaboratorColor(userId);
 
   // Provider factory for CollaborationPlugin
+  // IMPORTANT: This must be stable (memoized with minimal deps) because
+  // Lexical's CollaborationPlugin guards its effect with a ref flag —
+  // if the factory reference changes after the first run, it won't re-run.
   const providerFactory = useCallback(
     (id: string, docMap: Map<string, Y.Doc>): Provider => {
-      // Use a single doc instance across preload and Lexical collaboration map.
-      let doc = yjsDocMap.get(id) || docMap.get(id);
+      // Get or create the Y.Doc
+      let doc = docMap.get(id);
       if (!doc) {
         doc = new Y.Doc();
+        docMap.set(id, doc);
       }
-      yjsDocMap.set(id, doc);
-      docMap.set(id, doc);
+
+      // Apply pre-loaded state if we have it
+      const preloaded = preloadedStates.get(id);
+      if (preloaded) {
+        Y.applyUpdate(doc, preloaded);
+        preloadedStates.delete(id);
+      }
 
       // Create Supabase client
       const supabase = createClient();
@@ -83,24 +95,25 @@ export function CollaborationWrapper({
         },
       );
 
-      // Subscribe to status changes
+      // Subscribe to status changes (use refs for stability)
       provider.on("status", (payload: SyncStatus | { status: SyncStatus }) => {
         const status = typeof payload === "string" ? payload : payload.status;
-        onStatusChange?.(status);
+        onStatusChangeRef.current?.(status);
       });
 
       // Subscribe to awareness changes
       provider.on("awareness", (states: Map<number, unknown>) => {
-        onAwarenessChange?.(states);
+        onAwarenessChangeRef.current?.(states);
       });
 
       // Store ref for cleanup
       providerRef.current = provider;
 
-      // Do not connect here. Lexical CollaborationPlugin owns connect/disconnect lifecycle.
       return provider as unknown as Provider;
     },
-    [userId, userName, userAvatarUrl, userColor, onStatusChange, onAwarenessChange],
+    // Only depend on values that truly affect provider creation
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [documentId, userId, userName, userAvatarUrl, userColor.hex, userColor.gradient],
   );
 
   // Initial editor state - load from Y.js or create default
@@ -109,69 +122,80 @@ export function CollaborationWrapper({
     return initialContent || null;
   }, [initialContent, shouldBootstrapFromContent]);
 
-  // Load existing Y.js state when component mounts
+  // Pre-load Y.js state from database BEFORE rendering CollaborationPlugin
   useEffect(() => {
-    const loadDocument = async () => {
-      // Always start from a fresh Y.Doc to avoid stale in-memory state across route remounts.
-      const previousDoc = yjsDocMap.get(documentId);
-      if (previousDoc) {
-        previousDoc.destroy();
-      }
-      const doc = new Y.Doc();
-      yjsDocMap.set(documentId, doc);
+    let cancelled = false;
 
-      // Try to load existing state from database
-      const hasExistingState = await loadYjsDocument(documentId, doc);
-      const needsBackfill = !hasExistingState && !!initialContent;
-      setShouldBootstrapFromContent(needsBackfill);
+    const preloadState = async () => {
+      try {
+        // Create a temporary doc to load state into
+        const tempDoc = new Y.Doc();
+        const hasExistingState = await loadYjsDocument(documentId, tempDoc);
 
-      // One-time lazy migration: when legacy JSON docs bootstrap into Yjs, persist state immediately.
-      if (needsBackfill) {
-        let timeoutId: ReturnType<typeof setTimeout> | null = null;
-        const onFirstUpdate = () => {
-          if (timeoutId) return;
-          timeoutId = setTimeout(async () => {
-            const state = Y.encodeStateAsUpdate(doc);
-            await saveYjsDocument(documentId, state);
-            doc.off("update", onFirstUpdate);
-            backfillUnsubscribeRef.current = null;
-          }, 300);
-        };
-        doc.on("update", onFirstUpdate);
-        backfillUnsubscribeRef.current = () => {
-          doc.off("update", onFirstUpdate);
-          if (timeoutId) clearTimeout(timeoutId);
-        };
-      }
+        if (cancelled) {
+          tempDoc.destroy();
+          return;
+        }
 
-      if (hasExistingState) {
-        console.log("[Collab] Loaded existing Y.js state from database");
-      } else {
-        console.log("[Collab] No existing Y.js state, starting fresh");
+        if (hasExistingState) {
+          // Cache the raw state for the provider factory to apply
+          const state = Y.encodeStateAsUpdate(tempDoc);
+          preloadedStates.set(documentId, state);
+          setShouldBootstrapFromContent(false);
+          console.log("[Collab] Pre-loaded Y.js state from database");
+        } else {
+          preloadedStates.delete(documentId);
+          setShouldBootstrapFromContent(!!initialContent);
+          console.log("[Collab] No existing Y.js state, will bootstrap from content");
+        }
+
+        tempDoc.destroy();
+      } catch (error) {
+        console.error("[Collab] Error pre-loading Y.js state:", error);
+        preloadedStates.delete(documentId);
+        setShouldBootstrapFromContent(!!initialContent);
       }
 
-      setIsLoaded(true);
+      if (!cancelled) {
+        setIsLoaded(true);
+      }
     };
 
-    loadDocument();
+    // Reset loaded state when documentId changes
+    setIsLoaded(false);
+    preloadState();
 
-    // Cleanup on unmount
     return () => {
+      cancelled = true;
+      // Clean up provider on unmount
       if (providerRef.current) {
         providerRef.current.destroy();
         providerRef.current = null;
       }
-      if (backfillUnsubscribeRef.current) {
-        backfillUnsubscribeRef.current();
-        backfillUnsubscribeRef.current = null;
-      }
-      const doc = yjsDocMap.get(documentId);
-      if (doc) {
-        doc.destroy();
-        yjsDocMap.delete(documentId);
-      }
+      preloadedStates.delete(documentId);
     };
   }, [documentId, initialContent]);
+
+  // One-time backfill: when legacy JSON docs bootstrap into Yjs, persist immediately
+  useEffect(() => {
+    if (!shouldBootstrapFromContent || !isLoaded) return;
+
+    // After the CollaborationPlugin bootstraps content, save the initial Y.js state
+    const saveTimer = setTimeout(async () => {
+      // Find the doc from the provider
+      if (providerRef.current) {
+        try {
+          const state = Y.encodeStateAsUpdate(providerRef.current.doc);
+          await saveYjsDocument(documentId, state);
+          console.log("[Collab] Backfilled Y.js state from legacy content");
+        } catch (error) {
+          console.error("[Collab] Backfill save failed:", error);
+        }
+      }
+    }, 2000);
+
+    return () => clearTimeout(saveTimer);
+  }, [shouldBootstrapFromContent, isLoaded, documentId]);
 
   // Don't render until we've attempted to load
   if (!isLoaded) {
@@ -179,16 +203,14 @@ export function CollaborationWrapper({
   }
 
   return (
-    <LexicalCollaboration>
-      <CollaborationPlugin
-        id={documentId}
-        providerFactory={providerFactory}
-        initialEditorState={initialEditorState}
-        shouldBootstrap={true}
-        cursorColor={userColor.hex}
-        username={userName}
-      />
-    </LexicalCollaboration>
+    <CollaborationPlugin
+      id={documentId}
+      providerFactory={providerFactory}
+      initialEditorState={initialEditorState}
+      shouldBootstrap={true}
+      cursorColor={userColor.hex}
+      username={userName}
+    />
   );
 }
 
@@ -196,6 +218,5 @@ export function CollaborationWrapper({
  * Hook to access collaboration provider from outside the plugin
  */
 export function useCollaborationProvider() {
-  // This could be enhanced with a context provider if needed
   return null;
 }
