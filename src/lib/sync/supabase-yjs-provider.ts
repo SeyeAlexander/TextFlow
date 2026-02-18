@@ -38,18 +38,22 @@ export class SupabaseYjsProvider extends Observable<string> {
   private syncFallbackTimeoutId: ReturnType<typeof setTimeout> | null = null;
   private saveTimeoutId: ReturnType<typeof setTimeout> | null = null;
   private onSave?: (state: Uint8Array) => void;
+  private preloadedState: Uint8Array | null = null;
 
   constructor(
     supabase: SupabaseClient,
     config: SyncProviderConfig,
     doc: Y.Doc,
-    options?: { onSave?: (state: Uint8Array) => void },
+    options?: { onSave?: (state: Uint8Array) => void; preloadedState?: Uint8Array | null },
   ) {
     super();
     this.supabase = supabase;
     this.config = config;
     this.doc = doc;
     this.onSave = options?.onSave;
+    // Store pre-loaded state but do NOT apply yet.
+    // It will be applied in connect() after Lexical's binding is ready.
+    this.preloadedState = options?.preloadedState ?? null;
 
     // Initialize awareness with user info
     this.awareness = new Awareness(doc);
@@ -95,6 +99,13 @@ export class SupabaseYjsProvider extends Observable<string> {
     if (this.channel) return;
 
     this.setStatus("connecting");
+
+    // Apply pre-loaded state NOW — at this point Lexical's binding has set up
+    // its observeDeep handler, so the update will flow through to rendering.
+    if (this.preloadedState) {
+      Y.applyUpdate(this.doc, this.preloadedState);
+      this.preloadedState = null;
+    }
 
     const channelName = `doc:${this.config.documentId}`;
     this.channel = this.supabase.channel(channelName, {

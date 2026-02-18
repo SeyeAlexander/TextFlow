@@ -66,12 +66,11 @@ export function CollaborationWrapper({
         docMap.set(id, doc);
       }
 
-      // Apply pre-loaded state if we have it
-      const preloaded = preloadedStates.get(id);
-      if (preloaded) {
-        Y.applyUpdate(doc, preloaded);
-        preloadedStates.delete(id);
-      }
+      // Grab pre-loaded state (will be passed to provider, NOT applied here).
+      // The provider applies it inside connect() after Lexical's binding
+      // sets up observeDeep — so the update flows through to rendering.
+      const preloaded = preloadedStates.get(id) ?? null;
+      preloadedStates.delete(id);
 
       // Create Supabase client
       const supabase = createClient();
@@ -92,6 +91,7 @@ export function CollaborationWrapper({
           onSave: async (state) => {
             await saveYjsDocument(id, state);
           },
+          preloadedState: preloaded,
         },
       );
 
