@@ -44,6 +44,8 @@ export function CollaborationWrapper({
   const [isLoaded, setIsLoaded] = useState(false);
   const [shouldBootstrapFromContent, setShouldBootstrapFromContent] = useState(false);
   const providerRef = useRef<SupabaseYjsProvider | null>(null);
+  // Track the docMap so we can clean up old docs on unmount
+  const docMapRef = useRef<Map<string, Y.Doc> | null>(null);
   // Stable refs so the provider factory doesn't re-create on every render
   const onStatusChangeRef = useRef(onStatusChange);
   const onAwarenessChangeRef = useRef(onAwarenessChange);
@@ -59,12 +61,19 @@ export function CollaborationWrapper({
   // if the factory reference changes after the first run, it won't re-run.
   const providerFactory = useCallback(
     (id: string, docMap: Map<string, Y.Doc>): Provider => {
-      // Get or create the Y.Doc
-      let doc = docMap.get(id);
-      if (!doc) {
-        doc = new Y.Doc();
-        docMap.set(id, doc);
+      // Store docMap ref for cleanup
+      docMapRef.current = docMap;
+
+      // Always create a fresh Y.Doc to avoid stale state from previous mounts.
+      // The old doc may linger in the singleton yjsDocMap; if we reuse it,
+      // applying the same pre-loaded state is a no-op (Y.js deduplicates),
+      // so observeDeep never fires and content stays invisible.
+      const oldDoc = docMap.get(id);
+      if (oldDoc) {
+        oldDoc.destroy();
       }
+      const doc = new Y.Doc();
+      docMap.set(id, doc);
 
       // Grab pre-loaded state (will be passed to provider, NOT applied here).
       // The provider applies it inside connect() after Lexical's binding
@@ -172,6 +181,14 @@ export function CollaborationWrapper({
         providerRef.current.destroy();
         providerRef.current = null;
       }
+      // Clean up old Y.Doc from the docMap to avoid stale references
+      if (docMapRef.current) {
+        const oldDoc = docMapRef.current.get(documentId);
+        if (oldDoc) {
+          oldDoc.destroy();
+          docMapRef.current.delete(documentId);
+        }
+      }
       preloadedStates.delete(documentId);
     };
   }, [documentId, initialContent]);
@@ -204,6 +221,7 @@ export function CollaborationWrapper({
 
   return (
     <CollaborationPlugin
+      key={documentId}
       id={documentId}
       providerFactory={providerFactory}
       initialEditorState={initialEditorState}
